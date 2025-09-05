@@ -12,6 +12,7 @@ import com.intellij.lang.refactoring.NamesValidator;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.actionSystem.ex.ActionUtil;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.ScrollType;
@@ -217,8 +218,11 @@ public class OpenInSplittedTabBaseAction extends AnAction {
                 nextWindowPane.setAsCurrentWindow(true);
                 Editor selectedTextEditor = nextWindowPane.getManager().getSelectedTextEditor();
                 if (selectedTextEditor != null) {
-                    selectedTextEditor.getCaretModel().moveToOffset(target.getTextOffset());
-                    selectedTextEditor.getScrollingModel().scrollToCaret(ScrollType.CENTER);
+                    // Wrap PSI and editor model access in read action to avoid threading issues
+                    ReadAction.run(() -> {
+                        selectedTextEditor.getCaretModel().moveToOffset(target.getTextOffset());
+                        selectedTextEditor.getScrollingModel().scrollToCaret(ScrollType.CENTER);
+                    });
                 }
             }
         });
