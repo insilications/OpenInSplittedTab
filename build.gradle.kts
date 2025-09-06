@@ -1,51 +1,111 @@
+@file:Suppress("LongLine")
+
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
+
+group = providers.gradleProperty("pluginGroup").get()
+version = providers.gradleProperty("pluginVersion").get()
+
+//buildscript {
+//    repositories {
+//        mavenCentral()
+//        gradlePluginPortal()
+//    }
+//    dependencies {
+//        classpath("com.github.ben-manes:gradle-versions-plugin:+")
+//    }
+//}
+
+apply(plugin = "com.github.ben-manes.versions")
+
 plugins {
-    id("java")
-    id("org.jetbrains.kotlin.jvm") version "1.9.22"
-    id("org.jetbrains.intellij") version "1.16.1"
+    id("org.jetbrains.kotlin.jvm") version "2.2.10"
+    id("org.jetbrains.intellij.platform") version "2.9.0"
+    id("com.github.ben-manes.versions") version "0.52.0"
+    id("org.jetbrains.changelog") version "2.4.0"
 }
 
-group = "org.para.plugin"
-version = "0.2.1"
+//allprojects {
+//    repositories {
+//        mavenCentral()
+//        gradlePluginPortal()
+//    }
+//
+//    tasks.withType<DependencyUpdatesTask> {
+//        rejectVersionIf {
+//            isNonStable(candidate.version) && !isNonStable(currentVersion)
+//        }
+//
+//        checkForGradleUpdate = true
+//        outputDir = "build/dependencyUpdates"
+//        reportfileName = "report"
+//    }
+//}
 
 repositories {
     mavenCentral()
+    gradlePluginPortal()
+
+    intellijPlatform {
+        defaultRepositories()
+    }
 }
 
-// Configure Gradle IntelliJ Plugin
-// Read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
-intellij {
-    version.set("2023.2.5")
-    type.set("IC") // Target IDE Platform
-
-    plugins.set(listOf(/* Plugin Dependencies */))
-}
 
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+    // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
+    intellijPlatform {
+//        plugins(providers.gradleProperty("platformPlugins").map { it.split(',') })
+
+        intellijIdeaCommunity("2025.1.5")
+        bundledPlugin("org.jetbrains.kotlin")
+        bundledPlugin("com.intellij.java")
+//        androidStudio("2025.1.4.4")
+        plugin("org.jetbrains.android:251.27812.49")
+//        bundledPlugin("org.jetbrains.android")
+//        local("/aot/stuff/dev/android-studio/")
+    }
+}
+
+// Configure IntelliJ Platform Gradle Plugin - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-extension.html
+intellijPlatform {
+    pluginConfiguration {
+        ideaVersion {
+            sinceBuild.set(providers.gradleProperty("pluginSinceBuild"))
+//            untilBuild.set(providers.gradleProperty("pluginUntilBuild"))
+        }
+    }
+
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+        privateKey = providers.environmentVariable("PRIVATE_KEY")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+    }
+}
+
+// Set the JVM language level used to build the project.
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.fromTarget("21")
+    }
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
 }
 
 tasks {
-    // Set the JVM compatibility versions
-    withType<JavaCompile> {
-        sourceCompatibility = "17"
-        targetCompatibility = "17"
-    }
-    withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions.jvmTarget = "17"
-    }
-
-    patchPluginXml {
-        sinceBuild.set("232")
-        untilBuild.set("242.*")
-    }
-
-    signPlugin {
-        certificateChain.set(System.getenv("CERTIFICATE_CHAIN"))
-        privateKey.set(System.getenv("PRIVATE_KEY"))
-        password.set(System.getenv("PRIVATE_KEY_PASSWORD"))
+    wrapper {
+        gradleVersion = providers.gradleProperty("gradleVersion").get()
     }
 
     publishPlugin {
-        token.set(System.getenv("PUBLISH_TOKEN"))
+        dependsOn(patchChangelog)
     }
+}
+
+fun isNonStable(version: String): Boolean {
+    val stableKeyword = listOf("RELEASE", "FINAL", "GA").any { version.uppercase().contains(it) }
+    val regex = "^[0-9,.v-]+(-r)?$".toRegex()
+    val isStable = stableKeyword || regex.matches(version)
+    return isStable.not()
 }

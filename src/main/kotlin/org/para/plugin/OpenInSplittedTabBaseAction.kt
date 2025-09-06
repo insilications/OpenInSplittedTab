@@ -3,12 +3,11 @@ package org.para.plugin
 import com.intellij.codeInsight.CodeInsightBundle
 import com.intellij.codeInsight.TargetElementUtil
 import com.intellij.codeInsight.hint.HintManager
-import com.intellij.codeInsight.navigation.NavigationUtil
+import com.intellij.codeInsight.navigation.getPsiElementPopup
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationAction
 import com.intellij.find.actions.ShowUsagesAction
 import com.intellij.ide.util.DefaultPsiElementCellRenderer
 import com.intellij.lang.LanguageNamesValidation
-import com.intellij.lang.refactoring.NamesValidator
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.ApplicationManager
@@ -18,21 +17,17 @@ import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ScrollType
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.openapi.fileEditor.impl.EditorWindow
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
-import com.intellij.openapi.util.Computable
-import com.intellij.openapi.util.TextRange
-import com.intellij.openapi.util.registry.Registry
-import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.util.ThrowableComputable
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiReference
 import com.intellij.psi.search.PsiElementProcessor
 import com.intellij.psi.util.PsiUtilCore
-import com.intellij.ui.awt.RelativePoint
+import org.jetbrains.kotlin.idea.facet.getInstance
 import java.text.MessageFormat
 import javax.swing.SwingConstants
 import javax.swing.Timer
@@ -46,22 +41,24 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
     companion object {
         private val LOG = Logger.getInstance(OpenInSplittedTabBaseAction::class.java)
 
-        private fun getUsagesPageSize(): Int {
-            return maxOf(1, Registry.intValue("ide.usages.page.size", 100))
-        }
+//        private fun getUsagesPageSize(): Int {
+//            return 100
+//            return maxOf(1, Registry.intValue("ide.usages.page.size", 100))
+//        }
 
         private fun startFindUsages(editor: Editor, project: Project, element: PsiElement?): Boolean {
             if (element == null) {
                 return false
             }
-            
+
             if (DumbService.getInstance(project).isDumb) {
                 val action = ActionManager.getInstance().getAction(ShowUsagesAction.ID)
                 val name = action.templatePresentation.text
                 DumbService.getInstance(project).showDumbModeNotification(ActionUtil.getUnavailableMessage(name, false))
             } else {
                 val popupPosition = JBPopupFactory.getInstance().guessBestPopupLocation(editor)
-                ShowUsagesAction().startFindUsages(element, popupPosition, editor, getUsagesPageSize())
+                ShowUsagesAction.startFindUsages(element, popupPosition, editor)
+//                new ShowUsagesAction().startFindUsages(element, popupPosition, editor, getUsagesPageSize())
             }
             return true
         }
@@ -85,7 +82,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
             offset: Int,
             processor: PsiElementProcessor<in PsiElement>,
             titlePattern: String,
-            elements: Array<PsiElement>?
+            elements: Collection<PsiElement>?
         ): Boolean {
             if (TargetElementUtil.inVirtualSpace(editor, offset)) {
                 return false
@@ -125,7 +122,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
                         MessageFormat.format(titlePattern, refText)
                     }
 
-                    NavigationUtil.getPsiElementPopup(
+                    getPsiElementPopup(
                         targetElements,
                         DefaultPsiElementCellRenderer(),
                         title,
@@ -139,16 +136,16 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
         private fun chooseAmbiguousTarget(
             editor: Editor,
             offset: Int,
-            elements: Array<PsiElement>,
+            elements: Collection<PsiElement>,
             nextWindowPane: EditorWindow
         ) {
             if (!editor.component.isShowing) return
-            
+
             val navigateProcessor = PsiElementProcessor<PsiElement> { element ->
                 scrollToTarget(element, nextWindowPane)
                 true
             }
-            
+
             val found = chooseAmbiguousTarget(
                 editor,
                 offset,
@@ -156,7 +153,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
                 CodeInsightBundle.message("declaration.navigation.title"),
                 elements
             )
-            
+
             if (!found) {
                 HintManager.getInstance().showErrorHint(editor, "Cannot find declaration to go to")
             }
@@ -172,7 +169,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
                     val selectedTextEditor = nextWindowPane.manager.selectedTextEditor
                     if (selectedTextEditor != null) {
                         // Wrap PSI and editor model access in read action to avoid threading issues
-                        ReadAction.run {
+                        ReadAction.run<RuntimeException> {
                             selectedTextEditor.caretModel.moveToOffset(target.textOffset)
                             selectedTextEditor.scrollingModel.scrollToCaret(ScrollType.CENTER)
                         }
@@ -183,15 +180,19 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
             delayingScrollToCaret.start()
         }
 
-        private fun <T> underModalProgress(project: Project, computable: Computable<T>): T {
-            return ProgressManager.getInstance().runProcessWithProgressSynchronously({
-                DumbService.getInstance(project).setAlternativeResolveEnabled(true)
+        private fun <PsiElement> underModalProgress(project: Project, computable: () -> Collection<com.intellij.psi.PsiElement>): List<PsiElement> {
+            val search = {
+        //                DumbService.getInstance(project).setAlternativeResolveEnabled(true)
+                DumbService.getInstance(project).isAlternativeResolveEnabled = true
                 try {
-                    ApplicationManager.getApplication().runReadAction(computable)
+                    ApplicationManager.getApplication().runReadAction(computable as Runnable)
                 } finally {
-                    DumbService.getInstance(project).setAlternativeResolveEnabled(false)
+        //                    DumbService.getInstance(project).setAlternativeResolveEnabled(false)
+                    DumbService.getInstance(project).isAlternativeResolveEnabled = false
                 }
-            }, "Resolving Reference...", true, project)
+            } as ThrowableComputable<List<PsiElement>, Exception>
+
+            return ProgressManager.getInstance().runProcessWithProgressSynchronously(search, "Resolving Reference...", true, project)
         }
     }
 
@@ -247,7 +248,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
                     nextWindowPane.manager.openFileImpl2(nextWindowPane, element.containingFile.virtualFile, true)
                     // Of course, we don't want to close the tab if the new element is inside the same file as before.
                     if (closePreviousTab && fileToClose != null && fileToClose != element.containingFile.virtualFile) {
-                        fileEditorManager.currentWindow.closeFile(fileToClose)
+                        fileEditorManager.currentWindow?.closeFile(fileToClose)
                     }
 
                     scrollToTarget(element, nextWindowPane)
@@ -312,9 +313,9 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
     /**
      * @return The first `PsiElement` that is found by the GotoDeclarationAction for the currently selected `PsiElement`
      */
-    private fun getTargets(editor: Editor, project: Project, offset: Int): Array<PsiElement>? {
+    private fun getTargets(editor: Editor, project: Project, offset: Int): Collection<PsiElement> {
         return underModalProgress(project) {
-            GotoDeclarationAction.findAllTargetElements(project, editor, offset)
+            GotoDeclarationAction.findAllTargetElements(project, editor, offset) as Collection<PsiElement>
         }
     }
 }
