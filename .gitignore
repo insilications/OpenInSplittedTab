@@ -9,6 +9,8 @@ build/
 *.iml
 *.ipr
 out/
+.intellijPlatform/
+.intellijPlatform/self-update.lock
 
 # Java
 *.class
@@ -45,3 +47,9 @@ hs_err_pid*
 
 # Built plugin
 build/distributions/
+
+self-update.lock
+
+output.xml
+
+.kotlin/
