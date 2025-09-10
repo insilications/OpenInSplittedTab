@@ -14,7 +14,6 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
-import com.intellij.openapi.actionSystem.Presentation
 import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ReadAction
@@ -45,10 +44,11 @@ import javax.swing.SwingConstants
 import javax.swing.Timer
 
 /**
- * Base action to open the declaration of a symbol in a splitted tab.
+ * Base action to open the target symbol in a splitted tab
+ * If a splitted tab to the right already exists, use it to navigate to the symbol. If not, open a new one.
  *
- * @param closePreviousTab If true, closes the previous tab in the splitted window when navigating to a new symbol.
- * If false, keeps all opened tabs in the splitted window.
+ * @param closePreviousTab True: if the target symbol is not in the same file of the current tab,
+ * close the current file in the current tab (`EditorWindow`). False: open the symbol in a new splitted tab (`EditorWindow`).
  */
 open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : DumbAwareAction() {
     companion object {
@@ -110,30 +110,15 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
             }
 
             val reference: PsiReference? = TargetElementUtil.findReference(editor, offset)
-
-
-//            if (elements.isEmpty()) {
-//                elements = if (reference == null)
-//                    PsiElement.EMPTY_ARRAY
-//                else
-//                    PsiUtilCore.toPsiElementArray(
-//                        underModalProgress(
-//                            reference.getElement().getProject(),
-//                            { suggestCandidates(reference) })
-//                    )
-//            }
-//            if (elements == null || elements.length == 0) {
-//                elements = reference == null ? PsiElement.EMPTY_ARRAY
-//                : PsiUtilCore.toPsiElementArray(
-//                    underModalProgress(reference.getElement().getProject(),
-//                        () -> suggestCandidates(reference)));
-//            }
-
-            val targetElements: Array<PsiElement> = (elements ?: if (reference == null) {
-                PsiElement.EMPTY_ARRAY
+            val targetElements: Array<PsiElement> = if (elements.isNotEmpty()) {
+                elements
             } else {
-                getSuggestCandidates(project, reference)
-            })
+                if (reference == null) {
+                    PsiElement.EMPTY_ARRAY
+                } else {
+                    getSuggestCandidates(project, reference)
+                }
+            }
 
             when (targetElements.size) {
                 1 -> {
@@ -186,6 +171,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
             if (!editor.component.isShowing) return
 
             val navigateProcessor = PsiElementProcessor<PsiElement> { element ->
+                // Requires EDT context
                 scrollToTarget(element, nextWindowPane)
                 return@PsiElementProcessor true
             }
@@ -204,6 +190,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
             }
         }
 
+        // Requires EDT context
         private fun scrollToTarget(target: PsiElement, nextWindowPane: EditorWindow) {
             // Defer the scrolling of the new tab, otherwise the scrolling may not work properly
             val delayingScrollToCaret = Timer(10) { _ ->
@@ -261,7 +248,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
 
             withContext(Dispatchers.EDT) {
                 val fileEditorManager = FileEditorManagerEx.getInstanceEx(project)
-                val nextWindowPane = receiveNextWindowPane(project, fileEditorManager, e.dataContext) ?: return@withContext
+                val nextWindowPane = receiveNextWindowPane(project, fileEditorManager, dataContext) ?: return@withContext
 
                 when {
                     // If we get exactly one `PsiElement` at `offset`, we will open it in a splitted tab
@@ -271,20 +258,23 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
 
                         LOG.info("actionPerformed - elements.size == 1 - element: ${element.text}")
 
-                        // We want to replace the current active tab inside the splitter instead of creating a new tab.
-                        // So, we save which file is currently open, open the new file (in a new tab) and then close the
-                        // previous tab. To do this, we save which file is currently open.
-                        val fileToClose = fileEditorManager.currentFile
-
-                        // Use the `openFileImpl2` internal method instead of the `openFile` public API method because
-                        // the `openFile` opens a new window when the assigned shortcut for this action includes the shift-key
+                        // Use the internal method `openFileImpl2` instead of the public API method `openFile`
+                        // because the latter opens a new window when the assigned shortcut for this action includes the shift key.
                         @Suppress("DEPRECATION_ERROR")
                         nextWindowPane.manager.openFileImpl2(nextWindowPane, element.containingFile.virtualFile, true)
-                        // We don't want to close the tab if the new element is inside the same file as before
-                        if (closePreviousTab && fileToClose != null && fileToClose != element.containingFile.virtualFile) {
-                            fileEditorManager.currentWindow?.closeFile(fileToClose)
-                        }
 
+                        if (closePreviousTab) {
+                            // We save which file is currently open in the current tab
+                            val fileToClose = fileEditorManager.currentFile
+
+                            // We don't want to close the current file in the current tab if the target symbol
+                            // is in the same file of the current tab
+                            if (fileToClose != null && fileToClose != element.containingFile.virtualFile) {
+                                LOG.info("actionPerformed - close current tab - fileToClose: ${fileToClose.name}")
+                                fileEditorManager.currentWindow?.closeFile(fileToClose)
+                            }
+                        }
+                        // Requires EDT context
                         scrollToTarget(element, nextWindowPane)
                     }
                     // If we get zero or more than one `PsiElement` at `offset`, that is ambiguous
@@ -311,8 +301,6 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
                             if (isKeywordUnderCaret(project, file, offset)) return@withContext
                         }
                         chooseAmbiguousTarget1(project, editor, offset, elements, nextWindowPane)
-
-
                     }
                 }
             }
@@ -323,10 +311,9 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
         val dataContext: DataContext = e.dataContext
         val editor: Editor? = CommonDataKeys.EDITOR.getData(dataContext)
         val file: PsiFile? = CommonDataKeys.PSI_FILE.getData(dataContext)
-        val presentation: Presentation = e.presentation
 
         if (file == null || editor == null) {
-            presentation.isEnabled = false
+            e.presentation.isEnabled = false
             return
         }
 
@@ -334,7 +321,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
         val elementAt: PsiElement? = file.findElementAt(offset)
 
         if (elementAt == null) {
-            presentation.isEnabled = false
+            e.presentation.isEnabled = false
             return
         }
 
@@ -354,11 +341,20 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
             }
         }
 
-        val teste = elementAt is NavigatablePsiElement || elementAt.parent is NavigatablePsiElement
+//        public static boolean navigateToPsiElement(@NotNull PsiElement element) {
+//            Navigatable descriptor = getDescriptor(element);
+//            if (descriptor != null && descriptor.canNavigate()) {
+//                descriptor.navigate(true);
+//            }
+//            return true;
+//        }
+        val isNavitable = elementAt is NavigatablePsiElement || elementAt.parent is NavigatablePsiElement
+        LOG.warn("update - isNavitable: $isNavitable - element: ${elementAt.text}")
+
 
         // We found valid `PsiElement` target, so we enable our action
         if (targets.isNotEmpty()) {
-            presentation.isEnabled = true
+            e.presentation.isEnabled = true
             return
         } else {
             // We found no target for our own action, but maybe we can execute the `GotoDeclaration` action

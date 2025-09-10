@@ -11,33 +11,39 @@ version = providers.gradleProperty("pluginVersion").get()
 
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "2.2.10"
-    id("org.jetbrains.intellij.platform") version "2.9.0"
-    id("com.github.ben-manes.versions") version "0.52.0"
+    alias(libs.plugins.intellij.platform)
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.ben.manes.versions)
 }
 
 repositories {
     mavenCentral()
     gradlePluginPortal()
 
+
     intellijPlatform {
         defaultRepositories()
+        localPlatformArtifacts()
     }
 }
 
 dependencies {
-    // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
+    // IntelliJ Platform Gradle Plugin Dependencies Extension: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
-        intellijIdeaCommunity("2025.1.5.1")
+        // Starting with version 2025.3, `use intellijIdea()`
+        intellijIdeaCommunity(libs.versions.idea)
         bundledPlugin("org.jetbrains.kotlin")
         bundledPlugin("com.intellij.java")
 
-        pluginVerifier()
+        pluginVerifier(libs.versions.pluginVerifier)
     }
 }
 
-// Configure IntelliJ Platform Gradle Plugin - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-extension.html
+// Configure IntelliJ Platform Gradle Plugin: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-extension.html
 intellijPlatform {
+    instrumentCode = false
+    buildSearchableOptions = false
+
     pluginConfiguration {
         ideaVersion {
             sinceBuild.set(providers.gradleProperty("pluginSinceBuild"))
@@ -46,8 +52,7 @@ intellijPlatform {
 
     pluginVerification {
         ides {
-            create(IntelliJPlatformType.IntellijIdeaCommunity, "2025.1.5.1")
-//            recommended()
+            create(IntelliJPlatformType.IntellijIdeaCommunity, libs.versions.idea)
         }
     }
 
@@ -58,10 +63,17 @@ intellijPlatform {
     }
 }
 
-//java {
-//    sourceCompatibility = JavaVersion.VERSION_21
-//    targetCompatibility = JavaVersion.VERSION_21
-//}
+idea {
+    module {
+        isDownloadSources = true
+        isDownloadJavadoc = true
+    }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
 
 // Set the JVM language level used to build the project.
 kotlin {
@@ -75,10 +87,6 @@ kotlin {
 }
 
 tasks {
-//    withType<JavaCompile> {
-//        sourceCompatibility = "21"
-//        targetCompatibility = "21"
-//    }
     withType<KotlinCompile> {
         compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
         compilerOptions.languageVersion.set(KotlinVersion.KOTLIN_2_2)
@@ -89,15 +97,30 @@ tasks {
         gradleVersion = providers.gradleProperty("gradleVersion").get()
     }
 
-    withType<DependencyUpdatesTask> {
-        rejectVersionIf {
-            isStable(currentVersion) && !isStable(candidate.version)
-        }
+//    withType<DependencyUpdatesTask> {
+//        rejectVersionIf {
+//            logger.info("current group: ${candidate.group} - current module: ${candidate.module} - current moduleIdentifier: ${candidate.moduleIdentifier}")
+//            isStable(currentVersion) && !isStable(candidate.version)
+//            (isStable(currentVersion) && !isStable(candidate.version)) || (candidate.group == "com.intellij.java")
+//        }
+//
+//        checkForGradleUpdate = true
+//        outputDir = "build/dependencyUpdates"
+//        reportfileName = "report"
+//    }
+}
 
-        checkForGradleUpdate = true
-        outputDir = "build/dependencyUpdates"
-        reportfileName = "report"
+tasks.named<DependencyUpdatesTask>("dependencyUpdates").configure {
+
+    rejectVersionIf {
+        logger.info("current group: ${candidate.group} - current module: ${candidate.module} - current moduleIdentifier: ${candidate.moduleIdentifier}")
+        isStable(currentVersion) && !isStable(candidate.version)
+        (isStable(currentVersion) && !isStable(candidate.version)) || (candidate.group == "com.intellij.java")
     }
+
+    checkForGradleUpdate = true
+    outputDir = "build/dependencyUpdates"
+    reportfileName = "report"
 }
 
 fun isStable(version: String): Boolean {
