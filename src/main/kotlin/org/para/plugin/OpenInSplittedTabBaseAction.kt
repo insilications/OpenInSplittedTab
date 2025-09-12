@@ -6,7 +6,6 @@ import com.intellij.codeInsight.hint.HintManager
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationAction
 import com.intellij.codeInsight.navigation.getPsiElementPopup
 import com.intellij.find.actions.ShowUsagesAction
-import com.intellij.find.findUsages.FindUsagesOptions
 import com.intellij.ide.util.DefaultPsiElementCellRenderer
 import com.intellij.lang.LanguageNamesValidation
 import com.intellij.openapi.actionSystem.ActionManager
@@ -16,6 +15,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.actionSystem.ex.ActionUtil
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.readAction
@@ -76,24 +76,90 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
                 dumbServiceInstance.showDumbModeNotification(ActionUtil.getUnavailableMessage(name, false))
             } else {
                 LOG.info("startFindUsages - dumbServiceInstance.isDumb == false - element: ${element.text}")
+                val edt = ApplicationManager.getApplication().isDispatchThread
+                LOG.info("startFindUsages - edt: $edt")
                 val popupPosition: RelativePoint = JBPopupFactory.getInstance().guessBestPopupLocation(editor)
+
+//                val navigationCallback = Consumer<Usage> { usage ->
+//                    val elementFound = usage.element
+//                    if (elementFound != null && elementFound.isValid) {
+//                        navigateToElementInSplit(project, element)
+//                        LOG.info("startFindUsages - result: ${elementFound.text}")
+//                    }
+//                }
+//                ShowUsagesAction.showUsages(
+//                    project,
+//                    editor,
+//                    popupPosition,
+//                    element,
+//                    navigationCallback
+//                )
+
+//                var findUsagesFuture: Future<Collection<Usage>>? = null
+//                val options = FindUsagesArguments()
+
+//                withContext(Dispatchers.EDT) {
+//                val findUsagesFuture = withBackgroundProgress(project, "Resolving Usages...") {
+//                val findUsagesFuture = writeIntentReadAction {
+//                        val title = ShowUsagesAction.getUsagesTitle(element)
+//                val title = "TESTE"
+//                    return@writeIntentReadAction ShowUsagesAction.startFindUsagesWithResult(element, popupPosition, editor, null, title)
+//                }
+//                val results = WriteAction.compute<Collection<Usage>, RuntimeException> {
+//                    val findUsagesFuture: Future<MutableCollection<Usage>> =
+//                        ShowUsagesAction.startFindUsagesWithResult(element, popupPosition, editor, null, "TESTE")
+//
+//                    return@compute findUsagesFuture.get() ?: return@compute null
+//                }
+
                 var findUsagesFuture: Future<Collection<Usage>>? = null
-                val options = FindUsagesArguments()
+                findUsagesFuture =
+                    writeIntentReadAction { ShowUsagesAction.startFindUsagesWithResult(element, popupPosition, editor, null) }
+//                val findUsagesFuture: Future<MutableCollection<Usage>> =
+//                    ShowUsagesAction.startFindUsagesWithResult(element, popupPosition, editor, null, "TESTE")
 
-                withContext(Dispatchers.EDT) {
-//                withBackgroundProgress(project, "Resolving Usages...") {
-                    val scope = readAction {
-                        FindUsagesOptions.findScopeByName(project, null, options.scope)
-                    }
-                    findUsagesFuture =
-                        writeIntentReadAction { ShowUsagesAction.startFindUsagesWithResult(element, popupPosition, editor, scope) }
+                LOG.info("startFindUsages - edt 1: $edt")
 
-                    val results = findUsagesFuture?.get() ?: return@withContext true
-                    for (result in results) {
-                        LOG.info("startFindUsages - result: ${result.toString()}")
+                if (findUsagesFuture == null) {
+                    throw Exception("Can't find an element or search target under offset.")
+                }
+
+                LOG.info("startFindUsages - edt 2: $edt")
+                withBackgroundProgress(project, "Resolving References...") {
+                    readAction {
+                        try {
+                            val results = findUsagesFuture.get() // Blocks until the task is complete
+                            for (result in results) {
+                                LOG.info("startFindUsages - result: ${result.toString()}")
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
                     }
                 }
-                ShowUsagesAction.startFindUsages(element, popupPosition, editor)
+//                val results = findUsagesFuture!!.get()
+
+
+//                withBackgroundProgress(project, "Resolving References...") {
+//                    val results = findUsagesFuture.get() ?: return@withBackgroundProgress false
+//
+////                    val scope = readAction {
+////                        FindUsagesOptions.findScopeByName(project, null, options.scope)
+////                    }
+////                    findUsagesFuture =
+////                        writeIntentReadAction { ShowUsagesAction.startFindUsagesWithResult(element, popupPosition, editor, scope) }
+////
+////                    val results = findUsagesFuture?.get() ?: return@withContext true
+////                    for (result in results) {
+////                        LOG.info("startFindUsages - result: ${result.toString()}")
+////                    }
+////                }
+////                val results = findUsagesFuture?.get() ?: return true
+//                    for (result in results) {
+//                        LOG.info("startFindUsages - result: ${result.toString()}")
+//                    }
+//                }
+//                ShowUsagesAction.startFindUsages(element, popupPosition, editor)
             }
             return true
         }
@@ -268,7 +334,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
         LOG.info("actionPerformed - elementAt: ${elementAt.text}")
 
         if (targetElement != null) {
-            LOG.info("actionPerformed - targetElement: ${targetElement.text}")
+            LOG.info("actionPerformed - targetElement")
         } else {
             LOG.info("actionPerformed - targetElement == null")
         }
@@ -338,6 +404,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
                             if (isKeywordUnderCaret(project, file, offset)) return@withContext
                             LOG.info("actionPerformed - elements.size != 1 - 3")
                         }
+//                        val element: PsiElement? = GotoDeclarationAction.findElementToShowUsagesOf(editor, editor.caretModel.offset)
                         chooseAmbiguousTarget1(project, editor, offset, elements, nextWindowPane)
                     }
                 }
