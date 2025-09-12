@@ -6,6 +6,7 @@ import com.intellij.codeInsight.hint.HintManager
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationAction
 import com.intellij.codeInsight.navigation.getPsiElementPopup
 import com.intellij.find.actions.ShowUsagesAction
+import com.intellij.find.findUsages.FindUsagesOptions
 import com.intellij.ide.util.DefaultPsiElementCellRenderer
 import com.intellij.lang.LanguageNamesValidation
 import com.intellij.openapi.actionSystem.ActionManager
@@ -18,6 +19,7 @@ import com.intellij.openapi.actionSystem.ex.ActionUtil
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.readAction
+import com.intellij.openapi.application.writeIntentReadAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ScrollType
@@ -29,19 +31,28 @@ import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.platform.ide.progress.withBackgroundProgress
-import com.intellij.psi.NavigatablePsiElement
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiReference
 import com.intellij.psi.search.PsiElementProcessor
 import com.intellij.psi.util.PsiUtilCore
 import com.intellij.ui.awt.RelativePoint
+import com.intellij.usages.Usage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.MessageFormat
+import java.util.concurrent.Future
 import javax.swing.SwingConstants
 import javax.swing.Timer
+
+class FindUsagesArguments {
+    var position: String? = null
+
+    var scope: String = "All Places"
+
+    var expectedName: String? = null
+}
 
 /**
  * Base action to open the target symbol in a splitted tab
@@ -54,7 +65,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
     companion object {
         private val LOG = Logger.getInstance(OpenInSplittedTabBaseAction::class.java)
 
-        private fun startFindUsages(editor: Editor, project: Project, element: PsiElement): Boolean {
+        private suspend fun startFindUsages(editor: Editor, project: Project, element: PsiElement): Boolean {
             val dumbServiceInstance: DumbService = DumbService.getInstance(project)
             if (dumbServiceInstance.isDumb) {
                 LOG.info("startFindUsages - dumbServiceInstance.isDumb == true - element: ${element.text}")
@@ -66,6 +77,22 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
             } else {
                 LOG.info("startFindUsages - dumbServiceInstance.isDumb == false - element: ${element.text}")
                 val popupPosition: RelativePoint = JBPopupFactory.getInstance().guessBestPopupLocation(editor)
+                var findUsagesFuture: Future<Collection<Usage>>? = null
+                val options = FindUsagesArguments()
+
+                withContext(Dispatchers.EDT) {
+//                withBackgroundProgress(project, "Resolving Usages...") {
+                    val scope = readAction {
+                        FindUsagesOptions.findScopeByName(project, null, options.scope)
+                    }
+                    findUsagesFuture =
+                        writeIntentReadAction { ShowUsagesAction.startFindUsagesWithResult(element, popupPosition, editor, scope) }
+
+                    val results = findUsagesFuture?.get() ?: return@withContext true
+                    for (result in results) {
+                        LOG.info("startFindUsages - result: ${result.toString()}")
+                    }
+                }
                 ShowUsagesAction.startFindUsages(element, popupPosition, editor)
             }
             return true
@@ -81,13 +108,6 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
             if (reference == null) {
                 return PsiElement.EMPTY_ARRAY
             }
-
-//            val app = ApplicationManager.getApplication()
-//
-//            // If already in a read action (e.g., during update), compute directly to avoid `invokeAndWait` deadlock.
-//            if (app.isReadAccessAllowed) {
-//                return PsiUtilCore.toPsiElementArray(TargetElementUtil.getInstance().getTargetCandidates(reference))
-//            }
 
             return withBackgroundProgress(project, "Resolving References...") {
                 readAction {
@@ -150,6 +170,8 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
                         MessageFormat.format(titlePattern, refText)
                     }
 
+                    LOG.info("chooseAmbiguousTarget2 - targetElements.size > 1 - reference: $reference")
+
                     getPsiElementPopup(
                         targetElements,
                         DefaultPsiElementCellRenderer(),
@@ -176,6 +198,8 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
                 return@PsiElementProcessor true
             }
 
+            LOG.info("chooseAmbiguousTarget1")
+
             val found: Boolean = chooseAmbiguousTarget2(
                 project,
                 editor,
@@ -197,7 +221,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
                 if (!nextWindowPane.isShowing) {
                     scrollToTarget(target, nextWindowPane)
                 } else {
-                    nextWindowPane.setAsCurrentWindow(true)
+//                    nextWindowPane.setAsCurrentWindow(true)
 
                     @Suppress("UnstableApiUsage")
                     val selectedTextEditor: Editor? = nextWindowPane.manager.selectedTextEditor
@@ -234,10 +258,19 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
 
         val offset: Int = editor.caretModel.offset
         val elementAt: PsiElement? = file.findElementAt(offset)
+        val targetElement = TargetElementUtil.findTargetElement(editor, TargetElementUtil.getInstance().allAccepted)
 
         if (elementAt == null) {
             e.presentation.isEnabled = false
             return
+        }
+
+        LOG.info("actionPerformed - elementAt: ${elementAt.text}")
+
+        if (targetElement != null) {
+            LOG.info("actionPerformed - targetElement: ${targetElement.text}")
+        } else {
+            LOG.info("actionPerformed - targetElement == null")
         }
 
         val project: Project = elementAt.project
@@ -248,7 +281,7 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
 
             withContext(Dispatchers.EDT) {
                 val fileEditorManager = FileEditorManagerEx.getInstanceEx(project)
-                val nextWindowPane = receiveNextWindowPane(project, fileEditorManager, dataContext) ?: return@withContext
+                val nextWindowPane = receiveNextWindowPane(fileEditorManager) ?: return@withContext
 
                 when {
                     // If we get exactly one `PsiElement` at `offset`, we will open it in a splitted tab
@@ -294,11 +327,16 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
                             @Suppress("TestOnlyProblems")
                             val element: PsiElement? = GotoDeclarationAction.findElementToShowUsagesOf(editor, editor.caretModel.offset)
 
+                            LOG.info("actionPerformed - elements.size != 1 - 0")
+
                             if (element != null && startFindUsages(editor, project, element)) {
+                                LOG.info("actionPerformed - elements.size != 1 - 1")
                                 return@withContext
                             }
 
+                            LOG.info("actionPerformed - elements.size != 1 - 2")
                             if (isKeywordUnderCaret(project, file, offset)) return@withContext
+                            LOG.info("actionPerformed - elements.size != 1 - 3")
                         }
                         chooseAmbiguousTarget1(project, editor, offset, elements, nextWindowPane)
                     }
@@ -325,63 +363,28 @@ open class OpenInSplittedTabBaseAction(private val closePreviousTab: Boolean) : 
             return
         }
 
-        val project: Project = elementAt.project
-
-        // Perform PSI analysis within a read action because
-        // setting `getActionUpdateThread()` with `ActionUpdateThread.BGT` tells the platform
-        // to call our `update()` on a background thread, so we are not under a read.
-        // `ReadAction.compute` is a safe way to do this. `ReadAction.run()` and `ReadAction.compute()`
-        // require a blocking context and are always executed on the calling thread.
-        val targets: Array<PsiElement> = ReadAction.compute<Array<PsiElement>, Throwable> {
-            // According to the documentation, `DumbService.getInstance(project).isAlternativeResolveEnabled` is deprecated
-            // and we should use `DumbService.getInstance(project).computeWithAlternativeResolveEnabled` instead
-            DumbService.getInstance(project).computeWithAlternativeResolveEnabled<Array<PsiElement>, Throwable> {
-                @Suppress("TestOnlyProblems")
-                GotoDeclarationAction.findAllTargetElements(project, editor, offset)
-            }
-        }
-
-//        public static boolean navigateToPsiElement(@NotNull PsiElement element) {
-//            Navigatable descriptor = getDescriptor(element);
-//            if (descriptor != null && descriptor.canNavigate()) {
-//                descriptor.navigate(true);
-//            }
-//            return true;
-//        }
-        val isNavitable = elementAt is NavigatablePsiElement || elementAt.parent is NavigatablePsiElement
-        LOG.warn("update - isNavitable: $isNavitable - element: ${elementAt.text}")
-
-
-        // We found valid `PsiElement` target, so we enable our action
-        if (targets.isNotEmpty()) {
+        if (TargetElementUtil.getInstance().isNavigatableSource(elementAt)) {
             e.presentation.isEnabled = true
             return
         } else {
-            // We found no target for our own action, but maybe we can execute the `GotoDeclaration` action
-            gotoDeclarationAction.update(e)
+            e.presentation.isEnabled = false
+            return
         }
     }
 
     /**
      * @param fileEditorManager
-     * @param project
-     * @param dataContext
-     * @return If there are already split tabs, return the one on the right. If not, creates a vertically splitted tab on the right
+     * @return If there are already splitted tabs, return the one on the right. If not, creates a vertically splitted tab on the right
      */
     private fun receiveNextWindowPane(
-        project: Project,
         fileEditorManager: FileEditorManagerEx,
-        dataContext: DataContext
     ): EditorWindow? {
-        val activeWindowPane: EditorWindow = EditorWindow.DATA_KEY.getData(dataContext)
-            ?: return null // Action invoked when no files are open. Do nothing.
-
+        val activeWindowPane: EditorWindow = fileEditorManager.currentWindow ?: return null
         var nextWindowPane: EditorWindow? = fileEditorManager.getNextWindow(activeWindowPane)
 
         if (nextWindowPane == activeWindowPane) {
-            val fileManagerEx: FileEditorManagerEx = FileEditorManagerEx.getInstanceEx(project)
-            fileManagerEx.createSplitter(SwingConstants.VERTICAL, fileManagerEx.currentWindow)
-            nextWindowPane = fileEditorManager.getNextWindow(activeWindowPane)
+            // Create a new vertical split relative to the current window.
+            nextWindowPane = activeWindowPane.split(SwingConstants.VERTICAL, true, virtualFile = null, true)
         }
         return nextWindowPane
     }
