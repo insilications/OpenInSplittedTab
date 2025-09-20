@@ -1,0 +1,14 @@
+[versions]
+kotlin = "2.2.20"
+idea = "2025.1.5.1"
+intellijPlatformPlugin = "2.9.0"
+pluginVerifier = "1.395"
+benManesVersions = "0.52.0"
+
+[libraries]
+pluginVerifier-cli = { group = "org.jetbrains.intellij.plugins", name = "verifier-cli", version.ref = "pluginVerifier" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+intellij-platform = { id = "org.jetbrains.intellij.platform", version.ref = "intellijPlatformPlugin" }
+ben-manes-versions = { id = "com.github.ben-manes.versions", version.ref = "benManesVersions" }

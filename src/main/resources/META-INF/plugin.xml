@@ -1,0 +1,44 @@
+<idea-plugin>
+    <id>org.insilications.openinsplitted</id>
+    <name>Open In Splitted Tab</name>
+    <version>1.0.0</version>
+    <vendor email="boboniboni@gmail.com" url="https://github.com/insilications/OpenInSplittedTab">Francisco Boni Neto</vendor>
+
+    <description><![CDATA[
+      <p>This IntelliJ IDEA plugin opens the declaration/usage/implementation of the currently selected symbol in the next available splitted tab.</p>
+      <p>If a splitted tab is already open, it uses this. If not, a new splitted tab is opened. There are two actions available in the "Go To" menu:</p>
+      <ul>
+        <li>Declaration Or Usages (Splitted Tab): Opens the declaration/usage of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses this. If not, a new splitted tab is opened. If there are multiple declarations/usages, a popup will appear, allowing you to select the relevant one.</li>
+        <li>Implementation(s) (Splitted Tab): Opens the implementation of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses this. If there are multiple implementations, a popup will appear, allowing you to select the relevant one.</li>
+      </ul>
+      <p>The actions have no shortcuts assigned by default and are accessible in the "Go To".</p>
+    ]]></description>
+
+    <change-notes><![CDATA[]]></change-notes>
+
+    <!-- please see https://plugins.jetbrains.com/docs/intellij/build-number-ranges.html for description -->
+    <idea-version since-build="251" />
+
+    <!-- please see https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html
+         on how to target different products -->
+    <depends>com.intellij.modules.lang</depends>
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Add your extensions here -->
+        <!--        <projectService overrides="true" serviceImplementation="org.insilications.openinsplitted.MyIdeNavigationService" serviceInterface="com.intellij.platform.ide.navigation.NavigationService" />-->
+
+        <!--        <projectService serviceImplementation="org.insilications.openinsplitted.MyIdeNavigationServiceExecutor" />-->
+    </extensions>
+
+    <actions>
+        <!-- Add your actions here -->
+        <action class="org.insilications.openinsplitted.codeInsight.navigation.actions.GotoDeclarationAction" description="Opens the declaration/usage of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses this. If not, a new splitted tab is opened. If there are multiple declarations/usages, a popup will appear, allowing you to select the relevant one." id="declarationOrUsagesSplittedTabOpenInRightSplit" text="Declaration or Usages (Splitted)">
+            <add-to-group anchor="last" group-id="EditorPopupMenu.GoTo" />
+        </action>
+        <!--        <action class="org.insilications.openinsplitted.ImplementationSplittedTabAction" description="Opens the implementation of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses this. If there are multiple implementations, a popup will appear, allowing you to select the relevant one." id="implementationSplittedTabOpenInRightSplit" text="Implementation(s) (Splitted)">-->
+        <!--            <add-to-group anchor="last" group-id="EditorPopupMenu.GoTo" />-->
+        <!--        </action>-->
+    </actions>
+
+</idea-plugin>
