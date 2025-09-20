@@ -2,6 +2,8 @@
 
 package org.insilications.openinsplitted.codeInsight.navigation.impl
 
+import com.intellij.codeInsight.navigation.CtrlMouseData
+import com.intellij.codeInsight.navigation.impl.NavigationActionResult
 import com.intellij.find.usages.impl.symbolSearchTarget
 import com.intellij.model.psi.PsiSymbolService
 import com.intellij.model.psi.impl.TargetData
@@ -12,7 +14,6 @@ import com.intellij.psi.PsiFile
 import com.intellij.util.SmartList
 import com.intellij.util.indexing.DumbModeAccessType
 import org.insilications.openinsplitted.find.actions.SearchTargetVariant
-import org.insilications.openinsplitted.find.actions.TargetVariant
 import org.insilications.openinsplitted.model.psi.impl.declaredReferencedData
 
 internal fun gotoDeclarationOrUsages(file: PsiFile, offset: Int): GTDUActionData? {
@@ -23,6 +24,9 @@ internal fun gotoDeclarationOrUsages(file: PsiFile, offset: Int): GTDUActionData
  * "Go To Declaration Or Usages" action data
  */
 internal interface GTDUActionData {
+
+    fun ctrlMouseData(): CtrlMouseData?
+
     fun result(): GTDUActionResult?
 }
 
@@ -38,7 +42,7 @@ internal sealed class GTDUActionResult {
     /**
      * Show Usages
      */
-    class SU(val targetVariants: List<TargetVariant>) : GTDUActionResult() {
+    class SU(val targetVariants: List<org.insilications.openinsplitted.find.actions.TargetVariant>) : GTDUActionResult() {
 
         init {
             require(targetVariants.isNotEmpty())
@@ -62,11 +66,15 @@ private fun fromTargetData(file: PsiFile, offset: Int): GTDUActionData? {
 internal fun GTDActionData.toGTDUActionData(): GTDUActionData? {
     val gtdActionResult = result() ?: return null                           // nowhere to navigate
     return object : GTDUActionData {
+        //    override fun ctrlMouseData(): CtrlMouseData? = this@toGTDUActionData.ctrlMouseData()
         override fun result(): GTDUActionResult = GTDUActionResult.GTD(gtdActionResult)
     }
 }
 
 private class ShowUsagesGTDUActionData(private val project: Project, private val targetData: TargetData) : GTDUActionData {
+
+    override fun ctrlMouseData(): CtrlMouseData? = targetData.ctrlMouseData(project)
+
     override fun result(): GTDUActionResult? = searchTargetVariants(project, targetData).let { targets ->
         if (targets.isEmpty()) {
             null
@@ -76,7 +84,7 @@ private class ShowUsagesGTDUActionData(private val project: Project, private val
     }
 }
 
-private fun searchTargetVariants(project: Project, data: TargetData): List<TargetVariant> {
+private fun searchTargetVariants(project: Project, data: TargetData): List<org.insilications.openinsplitted.find.actions.TargetVariant> {
     return data.targets.mapNotNullTo(SmartList()) { (symbol, _) ->
         val psi: PsiElement? = PsiSymbolService.getInstance().extractElementFromSymbol(symbol)
         if (psi == null) {

@@ -8,7 +8,6 @@ import com.intellij.codeInsight.lookup.Lookup
 import com.intellij.codeInsight.lookup.LookupManager
 import com.intellij.codeInsight.multiverse.isSharedSourceSupportEnabled
 import com.intellij.codeInsight.navigation.impl.NavigationRequestor
-import com.intellij.codeInsight.navigation.impl.gtdTargetNavigatable
 import com.intellij.ide.IdeEventQueue
 import com.intellij.ide.ui.UISettings
 import com.intellij.ide.util.PsiNavigationSupport
@@ -29,83 +28,86 @@ import com.intellij.platform.backend.navigation.impl.SourceNavigationRequest
 import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.util.ui.EDT
+import org.insilications.openinsplitted.codeInsight.navigation.impl.gtdTargetNavigatable
 import org.jetbrains.annotations.ApiStatus.Internal
 import java.awt.event.MouseEvent
 
 internal fun navigateToLookupItem(project: Project): Boolean {
-  val activeLookup: Lookup? = LookupManager.getInstance(project).activeLookup
-  if (activeLookup == null) {
-    return false
-  }
-  val currentItem = activeLookup.currentItem
-  navigateRequestLazy(project) {
-    TargetElementUtil.targetElementFromLookupElement(currentItem)
-      ?.gtdTargetNavigatable()
-      ?.navigationRequest()
-  }
-  return true
+    val activeLookup: Lookup? = LookupManager.getInstance(project).activeLookup
+    if (activeLookup == null) {
+        return false
+    }
+    val currentItem = activeLookup.currentItem
+    navigateRequestLazy(project) {
+        TargetElementUtil.targetElementFromLookupElement(currentItem)
+            ?.gtdTargetNavigatable()
+            ?.navigationRequest()
+    }
+    return true
 }
 
 /**
  * Obtains a [NavigationRequest] instance from [requestor] on a background thread, and calls [navigateRequest].
  */
 internal fun navigateRequestLazy(project: Project, requestor: NavigationRequestor) {
-  EDT.assertIsEdt()
-  @Suppress("DialogTitleCapitalization")
-  val request = underModalProgress(project, ActionsBundle.actionText("GotoDeclarationOnly")) {
-    requestor.navigationRequest()
-  }
-  if (request != null) {
-    navigateRequest(project, request)
-  }
+    EDT.assertIsEdt()
+    @Suppress("DialogTitleCapitalization")
+    val request = underModalProgress(project, ActionsBundle.actionText("GotoDeclarationOnly")) {
+        requestor.navigationRequest()
+    }
+    if (request != null) {
+        navigateRequest(project, request)
+    }
 }
 
 @Internal
 @RequiresEdt
 fun navigateRequest(project: Project, request: NavigationRequest) {
-  EDT.assertIsEdt()
-  IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
-  when (request) {
-    is SourceNavigationRequest -> {
-      // TODO support pure source request without OpenFileDescriptor
-      val offset = request.offsetMarker?.takeIf { it.isValid }?.startOffset ?: -1
-      val openFileDescriptor = if (request is SharedSourceNavigationRequest && isSharedSourceSupportEnabled(project)) {
-        OpenFileDescriptor(project, request.file, request.context, offset)
-      }
-      else {
-        OpenFileDescriptor(project, request.file, offset)
-      }
-      if (UISettings.getInstance().openInPreviewTabIfPossible && Registry.`is`("editor.preview.tab.navigation")) {
-        openFileDescriptor.isUsePreviewTab = true
-      }
-      FileNavigator.getInstance().navigate(openFileDescriptor, true)
+    EDT.assertIsEdt()
+    IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
+    when (request) {
+        is SourceNavigationRequest -> {
+            // TODO support pure source request without OpenFileDescriptor
+            val offset = request.offsetMarker?.takeIf { it.isValid }?.startOffset ?: -1
+            val openFileDescriptor = if (request is SharedSourceNavigationRequest && isSharedSourceSupportEnabled(project)) {
+                OpenFileDescriptor(project, request.file, request.context, offset)
+            } else {
+                OpenFileDescriptor(project, request.file, offset)
+            }
+            if (UISettings.getInstance().openInPreviewTabIfPossible && Registry.`is`("editor.preview.tab.navigation")) {
+                openFileDescriptor.isUsePreviewTab = true
+            }
+            FileNavigator.getInstance().navigate(openFileDescriptor, true)
+        }
+
+        is DirectoryNavigationRequest -> {
+            PsiNavigationSupport.getInstance().navigateToDirectory(request.directory, true)
+        }
+
+        is RawNavigationRequest -> {
+            request.navigatable.navigate(true)
+        }
+
+        else -> {
+            error("unsupported request ${request.javaClass.name}")
+        }
     }
-    is DirectoryNavigationRequest -> {
-      PsiNavigationSupport.getInstance().navigateToDirectory(request.directory, true)
-    }
-    is RawNavigationRequest -> {
-      request.navigatable.navigate(true)
-    }
-    else -> {
-      error("unsupported request ${request.javaClass.name}")
-    }
-  }
 }
 
-internal fun notifyNowhereToGo(project: Project, editor: Editor, file: PsiFile, offset: Int) {
-  // Disable the 'no declaration found' notification for keywords
-  if (Registry.`is`("ide.gtd.show.error") && !isUnderDoubleClick() && !isKeywordUnderCaret(project, file, offset)) {
-    HintManager.getInstance().showInformationHint(editor, CodeInsightBundle.message("declaration.navigation.nowhere.to.go"))
-  }
+fun notifyNowhereToGo(project: Project, editor: Editor, file: PsiFile, offset: Int) {
+    // Disable the 'no declaration found' notification for keywords
+    if (Registry.`is`("ide.gtd.show.error") && !isUnderDoubleClick() && !isKeywordUnderCaret(project, file, offset)) {
+        HintManager.getInstance().showInformationHint(editor, CodeInsightBundle.message("declaration.navigation.nowhere.to.go"))
+    }
 }
 
 private fun isUnderDoubleClick(): Boolean {
-  val event = IdeEventQueue.getInstance().trueCurrentEvent
-  return event is MouseEvent && event.clickCount == 2
+    val event = IdeEventQueue.getInstance().trueCurrentEvent
+    return event is MouseEvent && event.clickCount == 2
 }
 
 private fun isKeywordUnderCaret(project: Project, file: PsiFile, offset: Int): Boolean {
-  val elementAtCaret = file.findElementAt(offset) ?: return false
-  val namesValidator = LanguageNamesValidation.INSTANCE.forLanguage(elementAtCaret.language)
-  return namesValidator.isKeyword(elementAtCaret.text, project)
+    val elementAtCaret = file.findElementAt(offset) ?: return false
+    val namesValidator = LanguageNamesValidation.INSTANCE.forLanguage(elementAtCaret.language)
+    return namesValidator.isKeyword(elementAtCaret.text, project)
 }

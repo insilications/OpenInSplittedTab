@@ -4,7 +4,6 @@ package org.insilications.openinsplitted.codeInsight.navigation.impl
 
 import com.intellij.codeInsight.TargetElementUtil
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler
-import com.intellij.codeInsight.navigation.impl.NavigationActionResult.SingleTarget
 import com.intellij.codeInsight.navigation.targetPresentation
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.IndexNotReadyException
@@ -13,6 +12,7 @@ import com.intellij.openapi.util.ThrowableComputable
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.util.indexing.DumbModeAccessType
+import org.insilications.openinsplitted.codeInsight.navigation.impl.NavigationActionResult.SingleTarget
 import org.jetbrains.annotations.ApiStatus.Internal
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -62,6 +62,16 @@ private class GTDProviderData(
     init {
         require(targetElements.isNotEmpty())
     }
+
+//  override fun ctrlMouseData(): CtrlMouseData {
+//    val singleTarget = targetElements.singleOrNull()
+//    if (singleTarget == null) {
+//      return multipleTargetsCtrlMouseData(getReferenceRanges(leafElement))
+//    }
+//    else {
+//      return psiCtrlMouseData(leafElement, singleTarget)
+//    }
+//  }
 
     override fun result(): NavigationActionResult? {
         return when (targetElements.size) {

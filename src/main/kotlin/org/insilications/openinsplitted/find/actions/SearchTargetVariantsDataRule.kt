@@ -2,6 +2,7 @@
 package org.insilications.openinsplitted.find.actions
 
 import com.intellij.codeInsight.TargetElementUtil
+import com.intellij.find.actions.FindUsagesAction
 import com.intellij.find.findUsages.PsiElement2UsageTargetAdapter
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
@@ -14,36 +15,33 @@ import com.intellij.util.SmartList
  * @see com.intellij.codeInsight.navigation.actions.GotoDeclarationAction.chooseAmbiguousTarget
  */
 internal fun targetVariants(dc: DataContext): List<TargetVariant> {
-  val allTargets = SmartList<TargetVariant>()
+    val allTargets = SmartList<TargetVariant>()
 
-  dc.getData(FindUsagesAction.SEARCH_TARGETS)?.mapTo(allTargets, ::SearchTargetVariant)
+    dc.getData(FindUsagesAction.SEARCH_TARGETS)?.mapTo(allTargets, ::SearchTargetVariant)
 
-  val usageTargets: Array<out UsageTarget>? = dc.getData(UsageView.USAGE_TARGETS_KEY)
-  if (usageTargets == null) {
-    val editor = dc.getData(CommonDataKeys.EDITOR)
-    if (editor != null) {
-      val offset = editor.caretModel.offset
-      try {
-        val reference = TargetElementUtil.findReference(editor, offset)
-        if (reference != null) {
-          TargetElementUtil.getInstance().getTargetCandidates(reference).mapTo(allTargets, ::PsiTargetVariant)
+    val usageTargets: Array<out UsageTarget>? = dc.getData(UsageView.USAGE_TARGETS_KEY)
+    if (usageTargets == null) {
+        val editor = dc.getData(CommonDataKeys.EDITOR)
+        if (editor != null) {
+            val offset = editor.caretModel.offset
+            try {
+                val reference = TargetElementUtil.findReference(editor, offset)
+                if (reference != null) {
+                    TargetElementUtil.getInstance().getTargetCandidates(reference).mapTo(allTargets, ::PsiTargetVariant)
+                }
+            } catch (ignore: IndexNotReadyException) {
+            }
         }
-      }
-      catch (ignore: IndexNotReadyException) {
-      }
+    } else if (usageTargets.isNotEmpty()) {
+        val target: UsageTarget = usageTargets[0]
+        if (target is PsiElement2UsageTargetAdapter) {
+            target.element?.let {
+                allTargets += PsiTargetVariant(it)
+            }
+        } else {
+            allTargets += CustomTargetVariant(target)
+        }
     }
-  }
-  else if (usageTargets.isNotEmpty()) {
-    val target: UsageTarget = usageTargets[0]
-    if (target is PsiElement2UsageTargetAdapter) {
-      target.element?.let {
-        allTargets += PsiTargetVariant(it)
-      }
-    }
-    else {
-      allTargets += CustomTargetVariant(target)
-    }
-  }
 
-  return allTargets
+    return allTargets
 }

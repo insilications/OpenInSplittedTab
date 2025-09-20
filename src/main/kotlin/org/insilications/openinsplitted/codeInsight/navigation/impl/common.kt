@@ -11,39 +11,39 @@ import com.intellij.pom.Navigatable
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 
-internal val LOG: Logger = Logger.getInstance("com.intellij.codeInsight.navigation.impl")
+internal val LOG: Logger = Logger.getInstance("org.insilications.openinsplitted.codeInsight.navigation.impl")
 
 internal fun <X : Any> processInjectionThenHost(file: PsiFile, offset: Int, function: (file: PsiFile, offset: Int) -> X?): X? {
-  return function(file, offset)
-         ?: fromHostFile(file, offset, function)
+    return function(file, offset)
+        ?: fromHostFile(file, offset, function)
 }
 
 private fun <X : Any> fromHostFile(file: PsiFile, offset: Int, function: (file: PsiFile, offset: Int) -> X?): X? {
-  val manager = InjectedLanguageManager.getInstance(file.project)
-  val topLevelFile = manager.getTopLevelFile(file) ?: return null
-  if (file == topLevelFile) return null
-  return function(topLevelFile, manager.injectedToHost(file, offset))
+    val manager = InjectedLanguageManager.getInstance(file.project)
+    val topLevelFile = manager.getTopLevelFile(file) ?: return null
+    if (file == topLevelFile) return null
+    return function(topLevelFile, manager.injectedToHost(file, offset))
 }
 
 internal fun <X : Any> processInjectionThenHost(editor: Editor, offset: Int, function: (editor: Editor, offset: Int) -> X?): X? {
-  return function(editor, offset)
-         ?: fromHostEditor(editor, offset, function)
+    return function(editor, offset)
+        ?: fromHostEditor(editor, offset, function)
 }
 
 private fun <X : Any> fromHostEditor(editor: Editor, offset: Int, function: (editor: Editor, offset: Int) -> X?): X? {
-  if (editor !is EditorWindow) {
-    return null
-  }
-  return function(editor.delegate, editor.document.injectedToHost(offset))
+    if (editor !is EditorWindow) {
+        return null
+    }
+    return function(editor.delegate, editor.document.injectedToHost(offset))
 }
 
 internal fun PsiElement.gtdTargetNavigatable(): Navigatable? {
-  return TargetElementUtil.getInstance()
-    .getGotoDeclarationTarget(this, navigationElement)
-    ?.psiNavigatable()
+    return TargetElementUtil.getInstance()
+        .getGotoDeclarationTarget(this, navigationElement)
+        ?.psiNavigatable()
 }
 
 internal fun PsiElement.psiNavigatable(): Navigatable? {
-  return this as? Navigatable
-         ?: EditSourceUtil.getDescriptor(this)
+    return this as? Navigatable
+        ?: EditSourceUtil.getDescriptor(this)
 }
