@@ -2,12 +2,12 @@ package org.insilications.openinsplitted.codeInsight.navigation.actions
 
 import com.intellij.codeInsight.CodeInsightActionHandler
 import com.intellij.codeInsight.CodeInsightBundle
+import com.intellij.codeInsight.navigation.actions.GotoDeclarationOrUsageHandler2
 import com.intellij.codeInsight.navigation.impl.LazyTargetWithPresentation
 import com.intellij.codeInsight.navigation.impl.NavigationActionResult
 import com.intellij.codeInsight.navigation.impl.NavigationActionResult.MultipleTargets
 import com.intellij.codeInsight.navigation.impl.NavigationActionResult.SingleTarget
 import com.intellij.openapi.actionSystem.DataContext
-import com.intellij.openapi.actionSystem.ex.ActionUtil.underModalProgress
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ex.util.EditorUtil
@@ -22,6 +22,8 @@ import org.insilications.openinsplitted.codeInsight.navigation.impl.GTDUActionRe
 import org.insilications.openinsplitted.codeInsight.navigation.impl.fromGTDProviders
 import org.insilications.openinsplitted.codeInsight.navigation.impl.gotoDeclarationOrUsages
 import org.insilications.openinsplitted.codeInsight.navigation.impl.toGTDUActionData
+import kotlin.reflect.full.companionObject
+import kotlin.reflect.jvm.isAccessible
 
 class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?) : CodeInsightActionHandler {
     companion object {
@@ -52,34 +54,64 @@ class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?)
 
         val offset = editor.caretModel.offset
         try {
-            val actionResult: GTDUActionResult? = underModalProgress(
-                project,
-                CodeInsightBundle.message("progress.title.resolving.reference")
-            ) {
-                gotoDeclarationOrUsages(project, editor, file, offset)?.result()
+//            val actionResult: GTDUActionResult? = underModalProgress(
+//                project,
+//                CodeInsightBundle.message("progress.title.resolving.reference")
+//            ) {
+//                gotoDeclarationOrUsages(project, editor, file, offset)?.result()
+//            }
+
+            GotoDeclarationOrUsageHandler2::class.companionObject?.let { companion ->
+                val method = companion.members.find { it.name == "gotoDeclarationOrUsages" }
+                method?.isAccessible = true
+                val actionResult: GTDUActionData? = method?.call(companion, project, editor, file, offset) as GTDUActionData?
+                val actionResult2 = actionResult?.result()
+                LOG.info("invoke")
+                when (actionResult2) {
+                    null -> {
+                        LOG.info("notifyNowhereToGo")
+                        notifyNowhereToGo(project, editor, file, offset)
+                    }
+
+                    is GTDUActionResult.GTD -> {
+                        LOG.info("gotoDeclarationOnly")
+                        gotoDeclarationOnly(project, editor, actionResult2.navigationActionResult)
+                    }
+
+                    is GTDUActionResult.SU -> {
+                        LOG.info("Show usages invoked from GotoDeclarationOrUsageHandler2")
+                    }
+                }
             }
+//            val kk: GTDUOutcome? = underModalProgress(
+//                project,
+//                CodeInsightBundle.message("progress.title.resolving.reference")
+//            ) {
+//                testGTDUOutcome(editor, file, offset)
+//            }
+
             LOG.info("invoke")
-            when (actionResult) {
-                null -> {
-//                    reporter?.reportDeclarationSearchFinished(GotoDeclarationReporter.DeclarationsFound.NONE)
-                    LOG.info("notifyNowhereToGo")
-                    notifyNowhereToGo(project, editor, file, offset)
-                }
-
-                is GTDUActionResult.GTD -> {
-//                    GTDUCollector.recordPerformed(GTDUCollector.GTDUChoice.GTD)
-//                    gotoDeclarationOnly(project, editor, actionResult.navigationActionResult, reporter)
-                    LOG.info("gotoDeclarationOnly")
-                    gotoDeclarationOnly(project, editor, actionResult.navigationActionResult)
-                }
-
-                is GTDUActionResult.SU -> {
-//                    reporter?.reportDeclarationSearchFinished(GotoDeclarationReporter.DeclarationsFound.NONE)
-//                    GTDUCollector.recordPerformed(GTDUCollector.GTDUChoice.SU)
-//                    showUsages(project, editor, file, actionResult.targetVariants)
-                    LOG.info("Show usages invoked from GotoDeclarationOrUsageHandler2")
-                }
-            }
+//            when (actionResult) {
+//                null -> {
+////                    reporter?.reportDeclarationSearchFinished(GotoDeclarationReporter.DeclarationsFound.NONE)
+//                    LOG.info("notifyNowhereToGo")
+//                    notifyNowhereToGo(project, editor, file, offset)
+//                }
+//
+//                is GTDUActionResult.GTD -> {
+////                    GTDUCollector.recordPerformed(GTDUCollector.GTDUChoice.GTD)
+////                    gotoDeclarationOnly(project, editor, actionResult.navigationActionResult, reporter)
+//                    LOG.info("gotoDeclarationOnly")
+//                    gotoDeclarationOnly(project, editor, actionResult.navigationActionResult)
+//                }
+//
+//                is GTDUActionResult.SU -> {
+////                    reporter?.reportDeclarationSearchFinished(GotoDeclarationReporter.DeclarationsFound.NONE)
+////                    GTDUCollector.recordPerformed(GTDUCollector.GTDUChoice.SU)
+////                    showUsages(project, editor, file, actionResult.targetVariants)
+//                    LOG.info("Show usages invoked from GotoDeclarationOrUsageHandler2")
+//                }
+//            }
         } catch (_: IndexNotReadyException) {
             DumbService.getInstance(project).showDumbModeNotificationForFunctionality(
                 CodeInsightBundle.message("message.navigation.is.not.available.here.during.index.update"),
