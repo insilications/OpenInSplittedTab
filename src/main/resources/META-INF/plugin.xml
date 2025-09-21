@@ -5,11 +5,10 @@
     <vendor email="boboniboni@gmail.com" url="https://github.com/insilications/OpenInSplittedTab">Francisco Boni Neto</vendor>
 
     <description><![CDATA[
-      <p>This IntelliJ IDEA plugin opens the declaration/usage/implementation of the currently selected symbol in the next available splitted tab.</p>
-      <p>If a splitted tab is already open, it uses this. If not, a new splitted tab is opened. There are two actions available in the "Go To" menu:</p>
+      <p>This IntelliJ IDEA plugin opens the declaration/usage of the currently selected symbol in the next available splitted tab.</p>
+      <p>If a splitted tab is already open, it uses that tab to navigate to the target symbol. Otherwise, a new splitted tab is opened. There are two actions available in the "Go To" menu:</p>
       <ul>
-        <li>Declaration Or Usages (Splitted Tab): Opens the declaration/usage of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses this. If not, a new splitted tab is opened. If there are multiple declarations/usages, a popup will appear, allowing you to select the relevant one.</li>
-        <li>Implementation(s) (Splitted Tab): Opens the implementation of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses this. If there are multiple implementations, a popup will appear, allowing you to select the relevant one.</li>
+        <li>Declaration Or Usages (Splitted Tab): Opens the declaration/usage of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses that tab to navigate to the target symbol. Otherwise, a new splitted tab is opened. If there are multiple declarations/usages, a popup will appear, allowing you to select one.</li>
       </ul>
       <p>The actions have no shortcuts assigned by default and are accessible in the "Go To".</p>
     ]]></description>
@@ -17,7 +16,7 @@
     <change-notes><![CDATA[]]></change-notes>
 
     <!-- please see https://plugins.jetbrains.com/docs/intellij/build-number-ranges.html for description -->
-    <idea-version since-build="251" />
+    <idea-version since-build="252" />
 
     <!-- please see https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html
          on how to target different products -->
@@ -30,7 +29,7 @@
 
     <actions>
         <!-- Add your actions here -->
-        <action class="org.insilications.openinsplitted.codeInsight.navigation.actions.GotoDeclarationActionSplitted" description="Opens the declaration/usage of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses this. If not, a new splitted tab is opened. If there are multiple declarations/usages, a popup will appear, allowing you to select the relevant one." id="GotoDeclarationActionSplitted" text="Declaration or Usages (Splitted)">
+        <action class="org.insilications.openinsplitted.codeInsight.navigation.actions.GotoDeclarationActionSplitted" description="Opens the declaration/usage of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses that tab to navigate to the target symbol. Otherwise, a new splitted tab is opened. If there are multiple declarations/usages, a popup will appear, allowing you to select one." id="GotoDeclarationActionSplitted" text="Declaration or Usages (Splitted)">
             <add-to-group anchor="last" group-id="EditorPopupMenu.GoTo" />
         </action>
     </actions>

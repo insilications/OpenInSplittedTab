@@ -1,6 +1,6 @@
 [versions]
 kotlin = "2.2.20"
-idea = "2025.1.5.1"
+idea = "2025.2.1"
 intellijPlatformPlugin = "2.9.0"
 pluginVerifier = "1.395"
 benManesVersions = "0.52.0"
