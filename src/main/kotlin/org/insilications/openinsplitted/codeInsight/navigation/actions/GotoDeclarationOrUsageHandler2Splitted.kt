@@ -23,6 +23,29 @@ import kotlin.reflect.full.companionObjectInstance
 import kotlin.reflect.full.declaredFunctions
 import kotlin.reflect.jvm.isAccessible
 
+/**
+ * "Go To Declaration Or Usages" action result
+ */
+sealed class GTDUActionResultMirror {
+    /**
+     * Go To Declaration
+     */
+    class GTD(val navigationActionResult: NavigationActionResult) : GTDUActionResultMirror()
+
+    /**
+     * Show Usages
+     */
+    class SU(val targetVariants: List<Any>) : GTDUActionResultMirror() {
+
+        init {
+            require(targetVariants.isNotEmpty())
+        }
+    }
+
+    class NONE() : GTDUActionResultMirror() {
+    }
+}
+
 class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?) : CodeInsightActionHandler {
     companion object {
         private val LOG: Logger = Logger.getInstance(GotoDeclarationOrUsageHandler2Splitted::class.java)
@@ -30,9 +53,9 @@ class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?)
 
     override fun startInWriteAction(): Boolean = false
 
-    fun invokeCustomGTDU(project: Project, editor: Editor, file: PsiFile, offset: Int) {
+    fun invokeCustomGTDU(project: Project, editor: Editor, file: PsiFile, offset: Int): GTDUActionResultMirror? {
         try {
-            val actionResult = underModalProgress(
+            val actionResult: GTDUActionResultMirror? = underModalProgress(
                 project,
                 CodeInsightBundle.message("progress.title.resolving.reference")
             ) {
@@ -48,27 +71,25 @@ class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?)
                 funGoto.isAccessible = true
                 val actionData: Any = funGoto.call(companionInstance, project, editor, file, offset) ?: return@underModalProgress null
 
-                // 2) actionData.result(): Any?
-                val resultFun = actionData::class.declaredFunctions.firstOrNull { it.name == "result" && it.parameters.size == 1 }
+                // 2) actionData.result(): Any? — use Java reflection (internal -> public at JVM level)
+                val resultMethod = actionData.javaClass.methods.firstOrNull { it.name == "result" && it.parameterCount == 0 }
                     ?: return@underModalProgress null
-                resultFun.isAccessible = true
-                val rawResult = resultFun.call(actionData) ?: return@underModalProgress null
+                val rawResult = resultMethod.invoke(actionData) ?: return@underModalProgress null
 
-                // 3) Distinguish GTD vs SU by probing getters
-                val resultK = rawResult::class
-                val navGetter = resultK.members.firstOrNull { it.name == "getNavigationActionResult" && it.parameters.size == 1 }
-                val tvGetter = resultK.members.firstOrNull { it.name == "getTargetVariants" && it.parameters.size == 1 }
+                // 3) Distinguish GTD vs SU via Java-style getters (simpler and reliable)
+                val resultClass = rawResult.javaClass
+                // Java reflection is simplest here because Kotlin internal compiles to public on the JVM,
+                // so Method.invoke typically works without setting `isAccessible` to `true`.
+                val navMethod = resultClass.methods.firstOrNull { it.name == "getNavigationActionResult" && it.parameterCount == 0 }
+                val tvMethod = resultClass.methods.firstOrNull { it.name == "getTargetVariants" && it.parameterCount == 0 }
 
                 when {
-                    navGetter != null -> {
-                        navGetter.isAccessible = true
-                        val navigationActionResult = navGetter.call(rawResult)!! as NavigationActionResult
-//                        // Delegate to platform GTD behavior (popup/selection/etc.) via public companion
-                        gotoDeclarationOnly(project, editor, navigationActionResult)
-                        "GTD"
+                    navMethod != null -> {
+                        val navigationActionResult = navMethod.invoke(rawResult)!! as NavigationActionResult
+                        GTDUActionResultMirror.GTD(navigationActionResult)
                     }
 
-                    tvGetter != null -> {
+                    tvMethod != null -> {
 //                        tvGetter.isAccessible = true
 //                        @Suppress("UNCHECKED_CAST")
 //                        val variants = tvGetter.call(rawResult) as List<TargetVariant>
@@ -87,40 +108,63 @@ class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?)
 //                            editor,
 //                            FindUsagesOptions.findScopeByName(project, dataContext, FindUsagesSettings.getInstance().defaultScopeName)
 //                        )
-                        LOG.info("Show usages invoked from GotoDeclarationOrUsageHandler2")
-                        "SU"
+//                        LOG.info("Show usages invoked from GotoDeclarationOrUsageHandler2")
+//                        "SU"
+                        GTDUActionResultMirror.SU(listOf("dummy")) // non-empty
                     }
 
-                    else -> "NONE"
+                    else -> GTDUActionResultMirror.NONE()
                 }
             }
 
-            if (actionResult == null || actionResult == "NONE") {
+            if (actionResult == null || actionResult is GTDUActionResultMirror.NONE) {
                 // fall back to stock message
 //                com.intellij.codeInsight.navigation.impl.notifyNowhereToGo(project, editor, file, offset)
                 LOG.info("notifyNowhereToGo")
             }
+//            LOG.info("actionResult: $actionResult")
+            return actionResult
+
         } catch (_: IndexNotReadyException) {
             DumbService.getInstance(project).showDumbModeNotificationForFunctionality(
                 CodeInsightBundle.message("message.navigation.is.not.available.here.during.index.update"),
                 DumbModeBlockedFunctionality.GotoDeclarationOrUsage
             )
         }
+        return null
     }
 
     override fun invoke(project: Project, editor: Editor, file: PsiFile) {
         if (navigateToLookupItem(project)) {
+            LOG.info("navigateToLookupItem")
             return
         }
 
         if (EditorUtil.isCaretInVirtualSpace(editor)) {
+            LOG.info("EditorUtil.isCaretInVirtualSpace")
             return
         }
 
         val offset = editor.caretModel.offset
-        invokeCustomGTDU(project, editor, file, offset)
+        val actionResult = invokeCustomGTDU(project, editor, file, offset)
+
+        when (actionResult) {
+            is GTDUActionResultMirror.GTD -> {
+                LOG.info("gotoDeclarationOnly")
+                // already handled inside invokeCustomGTDU
+                gotoDeclarationOnly(project, editor, actionResult.navigationActionResult)
+            }
+
+            is GTDUActionResultMirror.SU -> {
+                LOG.info("Show usages invoked from GotoDeclarationOrUsageHandler2 2")
+            }
+
+            is GTDUActionResultMirror.NONE, null -> {
+                LOG.info("notifyNowhereToGo 2")
+            }
+        }
     }
-    
+
     private fun gotoDeclarationOnly(
         project: Project,
         editor: Editor,

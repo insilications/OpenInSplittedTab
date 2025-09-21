@@ -4,6 +4,7 @@ package org.insilications.openinsplitted.codeInsight.navigation.actions
 import com.intellij.codeInsight.CodeInsightBundle
 import com.intellij.codeInsight.TargetElementUtil
 import com.intellij.codeInsight.hint.HintManager
+import com.intellij.codeInsight.lookup.Lookup
 import com.intellij.codeInsight.lookup.LookupManager
 import com.intellij.codeInsight.multiverse.isSharedSourceSupportEnabled
 import com.intellij.codeInsight.navigation.impl.NavigationRequestor
@@ -13,12 +14,16 @@ import com.intellij.ide.util.PsiNavigationSupport
 import com.intellij.idea.ActionsBundle
 import com.intellij.lang.LanguageNamesValidation
 import com.intellij.openapi.actionSystem.ex.ActionUtil.underModalProgress
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.fileEditor.FileNavigator
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
+import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.openapi.fileEditor.ex.IdeDocumentHistory
+import com.intellij.openapi.fileEditor.impl.EditorWindow
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.registry.Registry
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.impl.DirectoryNavigationRequest
 import com.intellij.platform.backend.navigation.impl.RawNavigationRequest
@@ -27,8 +32,32 @@ import com.intellij.platform.backend.navigation.impl.SourceNavigationRequest
 import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.util.ui.EDT
+import org.insilications.openinsplitted.codeInsight.navigation.impl.gtdTargetNavigatable
 import org.jetbrains.annotations.ApiStatus.Internal
 import java.awt.event.MouseEvent
+import javax.swing.SwingConstants
+
+fun receiveNextWindowPane(
+    fileEditorManager: FileEditorManagerEx,
+    file: VirtualFile,
+) {
+    val LOG: Logger = Logger.getInstance(GotoDeclarationOrUsageHandler2Splitted::class.java)
+    val activeEditorWindow: EditorWindow = fileEditorManager.currentWindow ?: return
+    val nextEditorWindow: EditorWindow? = fileEditorManager.getNextWindow(activeEditorWindow)
+
+    if (nextEditorWindow == activeEditorWindow) {
+        LOG.info("nextEditorWindow == activeEditorWindow")
+        // Create a new vertical split relative to the current window.
+        activeEditorWindow.split(SwingConstants.VERTICAL, true, file, true)
+    } else if (nextEditorWindow != null) {
+        nextEditorWindow.setAsCurrentWindow(true)
+//            fileEditorManager.currentWindow = nextEditorWindow
+//            nextEditorWindow.requestFocus(true)
+        LOG.info("nextEditorWindow != activeEditorWindow - nextEditorWindow != null")
+    } else {
+        LOG.info("nextEditorWindow != activeEditorWindow - nextEditorWindow == null")
+    }
+}
 
 internal fun navigateToLookupItem(project: Project): Boolean {
     val activeLookup: Lookup? = LookupManager.getInstance(project).activeLookup
@@ -62,6 +91,7 @@ internal fun navigateRequestLazy(project: Project, requestor: NavigationRequesto
 @RequiresEdt
 fun navigateRequest(project: Project, request: NavigationRequest) {
     EDT.assertIsEdt()
+    val LOG: Logger = Logger.getInstance(GotoDeclarationOrUsageHandler2Splitted::class.java)
     IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
     when (request) {
         is SourceNavigationRequest -> {
@@ -75,6 +105,16 @@ fun navigateRequest(project: Project, request: NavigationRequest) {
             if (UISettings.getInstance().openInPreviewTabIfPossible && Registry.`is`("editor.preview.tab.navigation")) {
                 openFileDescriptor.isUsePreviewTab = true
             }
+            val fileEditorManager = FileEditorManagerEx.getInstanceEx(project)
+            val file: VirtualFile = openFileDescriptor.file
+            if (!fileEditorManager.canOpenFile(file)) {
+                LOG.info("!fileEditorManager.canOpenFile(file) - $file")
+            }
+            receiveNextWindowPane(fileEditorManager, file)
+//            val editorWindow = fileEditorManager.splitters.openInRightSplit(file, true)
+//            openFileDescriptor.setUseCurrentWindow(true)
+//            fileEditorManager.currentWindow = editorWindow
+//            val opened = ofd.navigateInEditor(FileEditorManager.getInstance(project), options.requestFocus)
             FileNavigator.getInstance().navigate(openFileDescriptor, true)
         }
 
@@ -83,6 +123,7 @@ fun navigateRequest(project: Project, request: NavigationRequest) {
         }
 
         is RawNavigationRequest -> {
+            LOG.info("RawNavigationRequest - navigatable is ${request.navigatable::class.simpleName}")
             request.navigatable.navigate(true)
         }
 

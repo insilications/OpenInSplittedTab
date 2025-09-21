@@ -30,7 +30,7 @@
 
     <actions>
         <!-- Add your actions here -->
-        <action class="org.insilications.openinsplitted.codeInsight.navigation.actions.GotoDeclarationActionSplitted" description="Opens the declaration/usage of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses this. If not, a new splitted tab is opened. If there are multiple declarations/usages, a popup will appear, allowing you to select the relevant one." id="declarationOrUsagesSplittedTabOpenInRightSplit" text="Declaration or Usages (Splitted)">
+        <action class="org.insilications.openinsplitted.codeInsight.navigation.actions.GotoDeclarationActionSplitted" description="Opens the declaration/usage of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses this. If not, a new splitted tab is opened. If there are multiple declarations/usages, a popup will appear, allowing you to select the relevant one." id="GotoDeclarationActionSplitted" text="Declaration or Usages (Splitted)">
             <add-to-group anchor="last" group-id="EditorPopupMenu.GoTo" />
         </action>
     </actions>
