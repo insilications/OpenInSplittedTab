@@ -12,6 +12,7 @@ class GotoDeclarationActionSplitted : GotoDeclarationAction() {
 //        GotoDeclarationOrUsageHandler2(null)
         // EditorWindow::class.declaredMemberProperties.find { it.name == "component" }?.get(editorWindow) as JComponent
         // EditorWindow::class.GotoDeclarationOrUsageHandler2.Companion.find { it.name == "gotoDeclarationOrUsages" }
+        return GotoDeclarationOrUsageHandler2Splitted(null)
 
     }
 

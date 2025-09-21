@@ -2,10 +2,7 @@
 package org.insilications.openinsplitted.codeInsight.navigation.actions
 
 import com.intellij.codeInsight.CodeInsightBundle
-import com.intellij.codeInsight.TargetElementUtil
 import com.intellij.codeInsight.hint.HintManager
-import com.intellij.codeInsight.lookup.Lookup
-import com.intellij.codeInsight.lookup.LookupManager
 import com.intellij.codeInsight.multiverse.isSharedSourceSupportEnabled
 import com.intellij.codeInsight.navigation.impl.NavigationRequestor
 import com.intellij.ide.IdeEventQueue
@@ -28,23 +25,22 @@ import com.intellij.platform.backend.navigation.impl.SourceNavigationRequest
 import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.util.ui.EDT
-import org.insilications.openinsplitted.codeInsight.navigation.impl.gtdTargetNavigatable
 import org.jetbrains.annotations.ApiStatus.Internal
 import java.awt.event.MouseEvent
 
-internal fun navigateToLookupItem(project: Project): Boolean {
-    val activeLookup: Lookup? = LookupManager.getInstance(project).activeLookup
-    if (activeLookup == null) {
-        return false
-    }
-    val currentItem = activeLookup.currentItem
-    navigateRequestLazy(project) {
-        TargetElementUtil.targetElementFromLookupElement(currentItem)
-            ?.gtdTargetNavigatable()
-            ?.navigationRequest()
-    }
-    return true
-}
+//internal fun navigateToLookupItem(project: Project): Boolean {
+//    val activeLookup: Lookup? = LookupManager.getInstance(project).activeLookup
+//    if (activeLookup == null) {
+//        return false
+//    }
+//    val currentItem = activeLookup.currentItem
+//    navigateRequestLazy(project) {
+//        TargetElementUtil.targetElementFromLookupElement(currentItem)
+//            ?.gtdTargetNavigatable()
+//            ?.navigationRequest()
+//    }
+//    return true
+//}
 
 /**
  * Obtains a [NavigationRequest] instance from [requestor] on a background thread, and calls [navigateRequest].
