@@ -7,8 +7,14 @@ import com.intellij.codeInsight.navigation.impl.LazyTargetWithPresentation
 import com.intellij.codeInsight.navigation.impl.NavigationActionResult
 import com.intellij.codeInsight.navigation.impl.NavigationActionResult.MultipleTargets
 import com.intellij.codeInsight.navigation.impl.NavigationActionResult.SingleTarget
+import com.intellij.find.FindUsagesSettings
+import com.intellij.find.actions.ShowUsagesAction
+import com.intellij.find.findUsages.FindUsagesOptions
+import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.actionSystem.PlatformCoreDataKeys
 import com.intellij.openapi.actionSystem.ex.ActionUtil.underModalProgress
+import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.ex.util.EditorUtil
@@ -16,6 +22,7 @@ import com.intellij.openapi.project.DumbModeBlockedFunctionality
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.IndexNotReadyException
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.psi.PsiFile
 import com.intellij.ui.list.createTargetPopup
 import kotlin.reflect.full.companionObject
@@ -35,7 +42,7 @@ sealed class GTDUActionResultMirror {
     /**
      * Show Usages
      */
-    class SU(val targetVariants: List<Any>) : GTDUActionResultMirror() {
+    class SU(val targetVariants: List<*>) : GTDUActionResultMirror() {
 
         init {
             require(targetVariants.isNotEmpty())
@@ -74,6 +81,7 @@ class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?)
                 // 2) actionData.result(): Any? — use Java reflection (internal -> public at JVM level)
                 val resultMethod = actionData.javaClass.methods.firstOrNull { it.name == "result" && it.parameterCount == 0 }
                     ?: return@underModalProgress null
+                resultMethod.isAccessible = true
                 val rawResult = resultMethod.invoke(actionData) ?: return@underModalProgress null
 
                 // 3) Distinguish GTD vs SU via Java-style getters (simpler and reliable)
@@ -90,41 +98,19 @@ class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?)
                     }
 
                     tvMethod != null -> {
-//                        tvGetter.isAccessible = true
-//                        @Suppress("UNCHECKED_CAST")
-//                        val variants = tvGetter.call(rawResult) as List<TargetVariant>
-//                        if (variants.isEmpty()) return@underModalProgress "NONE"
-//
-//                        // You can customize Show Usages here; below mirrors stock popup call
-//                        val dataContext = SimpleDataContext.builder()
-//                            .add(CommonDataKeys.PSI_FILE, file)
-//                            .add(CommonDataKeys.EDITOR, editor)
-//                            .add(PlatformCoreDataKeys.CONTEXT_COMPONENT, editor.contentComponent)
-//                            .build()
-//                        ShowUsagesAction.showUsages(
-//                            project,
-//                            variants,
-//                            JBPopupFactory.getInstance().guessBestPopupLocation(editor),
-//                            editor,
-//                            FindUsagesOptions.findScopeByName(project, dataContext, FindUsagesSettings.getInstance().defaultScopeName)
-//                        )
-//                        LOG.info("Show usages invoked from GotoDeclarationOrUsageHandler2")
-//                        "SU"
-                        GTDUActionResultMirror.SU(listOf("dummy")) // non-empty
+                        LOG.info("SU")
+                        @Suppress("UNCHECKED_CAST")
+                        val variants = tvMethod.invoke(rawResult) as? List<*> ?: return@underModalProgress GTDUActionResultMirror.NONE()
+                        if (variants.isEmpty()) return@underModalProgress GTDUActionResultMirror.NONE()
+
+                        GTDUActionResultMirror.SU(variants) // non-empty
                     }
 
                     else -> GTDUActionResultMirror.NONE()
                 }
             }
 
-            if (actionResult == null || actionResult is GTDUActionResultMirror.NONE) {
-                // fall back to stock message
-//                com.intellij.codeInsight.navigation.impl.notifyNowhereToGo(project, editor, file, offset)
-                LOG.info("notifyNowhereToGo")
-            }
-//            LOG.info("actionResult: $actionResult")
             return actionResult
-
         } catch (_: IndexNotReadyException) {
             DumbService.getInstance(project).showDumbModeNotificationForFunctionality(
                 CodeInsightBundle.message("message.navigation.is.not.available.here.during.index.update"),
@@ -157,10 +143,31 @@ class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?)
 
             is GTDUActionResultMirror.SU -> {
                 LOG.info("Show usages invoked from GotoDeclarationOrUsageHandler2 2")
+                val searchTargets: List<*> = actionResult.targetVariants
+                require(searchTargets.isNotEmpty())
+
+                // Build DataContext for scope resolution (public API)
+                val dataContext = SimpleDataContext.builder()
+                    .add(CommonDataKeys.PSI_FILE, file)
+                    .add(CommonDataKeys.EDITOR, editor)
+                    .add(PlatformCoreDataKeys.CONTEXT_COMPONENT, editor.contentComponent)
+                    .build()
+
+                // Reflectively call ShowUsagesAction.showUsages(Project, List, RelativePoint, Editor, <scope/options>)
+                val m = ShowUsagesAction::class.java.methods.firstOrNull {
+                    it.name == "showUsages" && it.parameterCount == 5
+                } ?: return
+                m.isAccessible = true
+                m.invoke(
+                    null, project, searchTargets,
+                    JBPopupFactory.getInstance().guessBestPopupLocation(editor), editor,
+                    FindUsagesOptions.findScopeByName(project, dataContext, FindUsagesSettings.getInstance().defaultScopeName)
+                )
             }
 
             is GTDUActionResultMirror.NONE, null -> {
-                LOG.info("notifyNowhereToGo 2")
+                LOG.info("notifyNowhereToGo")
+                notifyNowhereToGo(project, editor, file, offset)
             }
         }
     }
