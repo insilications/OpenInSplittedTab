@@ -8,7 +8,6 @@ import com.intellij.codeInsight.navigation.impl.NavigationActionResult
 import com.intellij.codeInsight.navigation.impl.NavigationActionResult.MultipleTargets
 import com.intellij.codeInsight.navigation.impl.NavigationActionResult.SingleTarget
 import com.intellij.find.FindUsagesSettings
-import com.intellij.find.actions.ShowUsagesAction
 import com.intellij.find.findUsages.FindUsagesOptions
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
@@ -25,6 +24,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.psi.PsiFile
 import com.intellij.ui.list.createTargetPopup
+import org.insilications.openinsplitted.find.actions.ShowUsagesAction.showUsages
+import org.insilications.openinsplitted.find.actions.TargetVariant
 import kotlin.reflect.full.companionObject
 import kotlin.reflect.full.companionObjectInstance
 import kotlin.reflect.full.declaredFunctions
@@ -42,7 +43,7 @@ sealed class GTDUActionResultMirror {
     /**
      * Show Usages
      */
-    class SU(val targetVariants: List<*>) : GTDUActionResultMirror() {
+    class SU(val targetVariants: List<TargetVariant>) : GTDUActionResultMirror() {
 
         init {
             require(targetVariants.isNotEmpty())
@@ -100,8 +101,12 @@ class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?)
                     tvMethod != null -> {
                         LOG.info("SU")
                         @Suppress("UNCHECKED_CAST")
-                        val variants = tvMethod.invoke(rawResult) as? List<*> ?: return@underModalProgress GTDUActionResultMirror.NONE()
+                        val variants: List<TargetVariant> =
+                            tvMethod.invoke(rawResult) as? List<TargetVariant> ?: return@underModalProgress GTDUActionResultMirror.NONE()
                         if (variants.isEmpty()) return@underModalProgress GTDUActionResultMirror.NONE()
+//                        val variants: List<TargetVariant> =
+//                            tvMethod.invoke(rawResult) as? List<TargetVariant> ?: return@underModalProgress GTDUActionResultMirror.NONE()
+//                        if (variants.isEmpty()) return@underModalProgress GTDUActionResultMirror.NONE()
 
                         GTDUActionResultMirror.SU(variants) // non-empty
                     }
@@ -143,7 +148,7 @@ class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?)
 
             is GTDUActionResultMirror.SU -> {
                 LOG.info("Show usages invoked from GotoDeclarationOrUsageHandler2 2")
-                val searchTargets: List<*> = actionResult.targetVariants
+                val searchTargets: List<TargetVariant> = actionResult.targetVariants
                 require(searchTargets.isNotEmpty())
 
                 // Build DataContext for scope resolution (public API)
@@ -154,15 +159,27 @@ class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?)
                     .build()
 
                 // Reflectively call ShowUsagesAction.showUsages(Project, List, RelativePoint, Editor, <scope/options>)
-                val m = ShowUsagesAction::class.java.methods.firstOrNull {
-                    it.name == "showUsages" && it.parameterCount == 5
-                } ?: return
-                m.isAccessible = true
-                m.invoke(
-                    null, project, searchTargets,
-                    JBPopupFactory.getInstance().guessBestPopupLocation(editor), editor,
-                    FindUsagesOptions.findScopeByName(project, dataContext, FindUsagesSettings.getInstance().defaultScopeName)
-                )
+//                val m = ShowUsagesAction::class.java.methods.firstOrNull {
+//                    it.name == "showUsages" && it.parameterCount == 5
+//                } ?: return
+//                m.isAccessible = true
+                try {
+//                    m.invoke(
+//                        null, project, searchTargets,
+//                        JBPopupFactory.getInstance().guessBestPopupLocation(editor), editor,
+//                        FindUsagesOptions.findScopeByName(project, dataContext, FindUsagesSettings.getInstance().defaultScopeName)
+//                    )
+                    showUsages(
+                        project, searchTargets,
+                        JBPopupFactory.getInstance().guessBestPopupLocation(editor), editor,
+                        FindUsagesOptions.findScopeByName(project, dataContext, FindUsagesSettings.getInstance().defaultScopeName)
+                    )
+                } catch (_: IndexNotReadyException) {
+                    DumbService.getInstance(project).showDumbModeNotificationForFunctionality(
+                        CodeInsightBundle.message("message.navigation.is.not.available.here.during.index.update"),
+                        DumbModeBlockedFunctionality.GotoDeclarationOrUsage
+                    )
+                }
             }
 
             is GTDUActionResultMirror.NONE, null -> {

@@ -37,6 +37,9 @@ dependencies {
 
         pluginVerifier(libs.versions.pluginVerifier)
     }
+
+//    compileOnly("org.jetbrains:annotations:26.0.2")
+    compileOnly(libs.jetbrains.annotations)
 }
 
 // Configure IntelliJ Platform Gradle Plugin: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-extension.html
