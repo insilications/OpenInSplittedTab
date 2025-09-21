@@ -24,22 +24,8 @@ import kotlin.reflect.full.declaredFunctions
 import kotlin.reflect.jvm.isAccessible
 
 class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?) : CodeInsightActionHandler {
-
-
     companion object {
         private val LOG: Logger = Logger.getInstance(GotoDeclarationOrUsageHandler2Splitted::class.java)
-
-//        private fun gotoDeclarationOrUsages(project: Project, editor: Editor, file: PsiFile, offset: Int): GTDUActionData? {
-////            GotoDeclarationOrUsageHandler2.gotoDeclarationOrUsages()
-//            return fromGTDProviders(project, editor, offset)?.toGTDUActionData()
-//                ?: gotoDeclarationOrUsages(file, offset)
-//        }
-
-//        @JvmStatic
-//        fun getCtrlMouseData(editor: Editor, file: PsiFile, offset: Int): CtrlMouseData? {
-//            return gotoDeclarationOrUsages(file.project, editor, file, offset)?.ctrlMouseData()
-//        }
-
     }
 
     override fun startInWriteAction(): Boolean = false
@@ -123,78 +109,18 @@ class GotoDeclarationOrUsageHandler2Splitted(private val reporter: DataContext?)
     }
 
     override fun invoke(project: Project, editor: Editor, file: PsiFile) {
-//        if (navigateToLookupItem(project)) {
-//            return
-//        }
+        if (navigateToLookupItem(project)) {
+            return
+        }
+
         if (EditorUtil.isCaretInVirtualSpace(editor)) {
             return
         }
 
         val offset = editor.caretModel.offset
         invokeCustomGTDU(project, editor, file, offset)
-//        try {
-//            val actionResult: GTDUActionResult? = underModalProgress(
-//                project,
-//                CodeInsightBundle.message("progress.title.resolving.reference")
-//            ) {
-//                gotoDeclarationOrUsages(project, editor, file, offset)?.result()
-//            }
-
-//            GotoDeclarationOrUsageHandler2::class.companionObject?.let { companion ->
-//                val method = companion.members.find { it.name == "gotoDeclarationOrUsages" }
-//                method?.isAccessible = true
-//                val actionResult: KtGtduBridge.GtduActionDataMirror? =
-//                    method?.call(companion, project, editor, file, offset) as KtGtduBridge.GtduActionDataMirror?
-//                val actionResult2 = actionResult?.result
-//                LOG.info("invoke")
-//                when (actionResult2) {
-//                    null -> {
-//                        LOG.info("notifyNowhereToGo")
-//                        notifyNowhereToGo(project, editor, file, offset)
-//                    }
-//
-//                    is GTDUActionResult.GTD -> {
-//                        LOG.info("gotoDeclarationOnly")
-//                        gotoDeclarationOnly(project, editor, actionResult2.navigationActionResult)
-//                    }
-//
-//                    is GTDUActionResult.SU -> {
-//                        LOG.info("Show usages invoked from GotoDeclarationOrUsageHandler2")
-//                    }
-//                }
-//            }
-
-//            LOG.info("invoke")
-//            when (actionResult) {
-//                null -> {
-////                    reporter?.reportDeclarationSearchFinished(GotoDeclarationReporter.DeclarationsFound.NONE)
-//                    LOG.info("notifyNowhereToGo")
-//                    notifyNowhereToGo(project, editor, file, offset)
-//                }
-//
-//                is GTDUActionResult.GTD -> {
-////                    GTDUCollector.recordPerformed(GTDUCollector.GTDUChoice.GTD)
-////                    gotoDeclarationOnly(project, editor, actionResult.navigationActionResult, reporter)
-//                    LOG.info("gotoDeclarationOnly")
-//                    gotoDeclarationOnly(project, editor, actionResult.navigationActionResult)
-//                }
-//
-//                is GTDUActionResult.SU -> {
-////                    reporter?.reportDeclarationSearchFinished(GotoDeclarationReporter.DeclarationsFound.NONE)
-////                    GTDUCollector.recordPerformed(GTDUCollector.GTDUChoice.SU)
-////                    showUsages(project, editor, file, actionResult.targetVariants)
-//                    LOG.info("Show usages invoked from GotoDeclarationOrUsageHandler2")
-//                }
-//            }
-//        } catch (_: IndexNotReadyException) {
-//            DumbService.getInstance(project).showDumbModeNotificationForFunctionality(
-//                CodeInsightBundle.message("message.navigation.is.not.available.here.during.index.update"),
-//                DumbModeBlockedFunctionality.GotoDeclarationOrUsage
-//            )
-//        }
     }
-
-
+    
     private fun gotoDeclarationOnly(
         project: Project,
         editor: Editor,

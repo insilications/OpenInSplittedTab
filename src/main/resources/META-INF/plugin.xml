@@ -23,13 +23,9 @@
          on how to target different products -->
     <depends>com.intellij.modules.lang</depends>
     <depends>com.intellij.modules.platform</depends>
-    <!--    <depends>org.jetbrains.kotlin</depends>-->
 
     <extensions defaultExtensionNs="com.intellij">
         <!-- Add your extensions here -->
-        <!--        <projectService overrides="true" serviceImplementation="org.insilications.openinsplitted.MyIdeNavigationService" serviceInterface="com.intellij.platform.ide.navigation.NavigationService" />-->
-
-        <!--        <projectService serviceImplementation="org.insilications.openinsplitted.MyIdeNavigationServiceExecutor" />-->
     </extensions>
 
     <actions>
@@ -37,9 +33,6 @@
         <action class="org.insilications.openinsplitted.codeInsight.navigation.actions.GotoDeclarationActionSplitted" description="Opens the declaration/usage of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses this. If not, a new splitted tab is opened. If there are multiple declarations/usages, a popup will appear, allowing you to select the relevant one." id="declarationOrUsagesSplittedTabOpenInRightSplit" text="Declaration or Usages (Splitted)">
             <add-to-group anchor="last" group-id="EditorPopupMenu.GoTo" />
         </action>
-        <!--        <action class="org.insilications.openinsplitted.ImplementationSplittedTabAction" description="Opens the implementation of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses this. If there are multiple implementations, a popup will appear, allowing you to select the relevant one." id="implementationSplittedTabOpenInRightSplit" text="Implementation(s) (Splitted)">-->
-        <!--            <add-to-group anchor="last" group-id="EditorPopupMenu.GoTo" />-->
-        <!--        </action>-->
     </actions>
 
 </idea-plugin>
