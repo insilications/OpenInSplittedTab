@@ -10,12 +10,12 @@ import com.intellij.openapi.actionSystem.DataContext
  * If there are multiple declarations/usages, a popup will appear, allowing you to select one.
  */
 class GotoDeclarationActionSplitted : GotoDeclarationAction() {
-    protected override fun getHandler(): CodeInsightActionHandler {
-        return GotoDeclarationOrUsageHandler2Splitted()
-
+    // Reuse a single handler instance to avoid per‑invocation allocations.
+    private val sharedHandler: CodeInsightActionHandler by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        GotoDeclarationOrUsageHandler2Splitted()
     }
 
-    protected override fun getHandler(dataContext: DataContext): CodeInsightActionHandler {
-        return GotoDeclarationOrUsageHandler2Splitted()
-    }
+    protected override fun getHandler(): CodeInsightActionHandler = sharedHandler
+
+    protected override fun getHandler(dataContext: DataContext): CodeInsightActionHandler = sharedHandler
 }

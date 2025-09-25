@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 - Project Source: `src/main/kotlin/org/insilications/openinsplitted/` (Kotlin actions and core logic).
-- Intellij Platform API Source: `intellij-community/`. This symbolic link folder contains the IntelliJ Platform API, which will help you enhance your knowledge of the API.
+- Intellij Platform API Source Code: `intellij-community/`. This symbolic link folder contains the IntelliJ Platform API source code, which will help you enhance your knowledge of the API.
 - Plugin config: `src/main/resources/META-INF/plugin.xml` (actions, IDs).
 - Build: `build.gradle.kts`, `settings.gradle.kts`, `gradle/libs.versions.toml`, `gradle.properties`.
 - Versioning: Semantic Versioning 2.0.0 (https://semver.org).
@@ -22,10 +22,8 @@
 - Find Text: `rg -L` (ripgrep)
 
 ## Build And Development Commands
-- `./gradlew build` — Compiles and packages; runs checks.
+- `./gradlew buildPlugin` — Compiles, checks and packages. Creates the *.zip distribution file in `build/distributions/`.
 - `./gradlew verifyPlugin` — Runs IntelliJ Plugin Verifier against configured IDEs.
-- `./gradlew dependencyUpdates` — Reports available dependency upgrades.
-- `./gradlew buildPlugin` — Produces a zip under `build/distributions/`.
 
 ## Testing Guidelines
 - Adding tests is not currently necessary.

@@ -1,4 +1,6 @@
 // Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+@file:Suppress("NOTHING_TO_INLINE")
+
 package org.insilications.openinsplitted.codeInsight.navigation.actions
 
 import com.intellij.codeInsight.CodeInsightBundle
@@ -27,13 +29,18 @@ import com.intellij.platform.backend.navigation.impl.RawNavigationRequest
 import com.intellij.platform.backend.navigation.impl.SourceNavigationRequest
 import com.intellij.platform.ide.navigation.NavigationOptions
 import com.intellij.platform.ide.navigation.navigateBlocking
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.util.ui.EDT
 import org.insilications.openinsplitted.codeInsight.navigation.impl.gtdTargetNavigatable
+import org.insilications.openinsplitted.debug
 import org.jetbrains.annotations.ApiStatus.Internal
+import java.awt.AWTEvent
 import java.awt.event.MouseEvent
 import javax.swing.SwingConstants
+
+private val LOG: Logger = Logger.getInstance(GotoDeclarationOrUsageHandler2Splitted::class.java)
 
 /**
  * If `nextEditorWindow` is the same as `activeEditorWindow`, it means there are no splitted tabs.
@@ -51,22 +58,20 @@ fun receiveNextWindowPane(
     project: Project,
     file: VirtualFile?,
 ) {
-    val log: Logger = Logger.getInstance(GotoDeclarationOrUsageHandler2Splitted::class.java)
-
     val fileEditorManager: FileEditorManagerEx = FileEditorManagerEx.getInstanceEx(project)
     val activeEditorWindow: EditorWindow = fileEditorManager.currentWindow ?: return
     val nextEditorWindow: EditorWindow? = fileEditorManager.getNextWindow(activeEditorWindow)
 
     if (nextEditorWindow == activeEditorWindow) {
-        log.info("nextEditorWindow == activeEditorWindow")
+        LOG.debug { "nextEditorWindow == activeEditorWindow" }
         // Create a new vertical split relative to the current window and focus on it.
         // The `file` parameter can be null, in which case the new split will have the same file as `activeEditorWindow`.
         activeEditorWindow.split(SwingConstants.VERTICAL, true, file, true)
     } else if (nextEditorWindow != null) {
         nextEditorWindow.setAsCurrentWindow(true)
-        log.info("nextEditorWindow != activeEditorWindow - nextEditorWindow != null")
+        LOG.debug { "nextEditorWindow != activeEditorWindow - nextEditorWindow != null" }
     } else {
-        log.info("nextEditorWindow != activeEditorWindow - nextEditorWindow == null")
+        LOG.debug { "nextEditorWindow != activeEditorWindow - nextEditorWindow == null" }
     }
 }
 
@@ -88,7 +93,7 @@ internal inline fun navigateToLookupItem(project: Project, editor: Editor): Bool
 internal fun navigateRequestLazy(project: Project, requestor: NavigationRequestor, editor: Editor) {
     EDT.assertIsEdt()
     @Suppress("DialogTitleCapitalization")
-    val request = underModalProgress(project, ActionsBundle.actionText("GotoDeclarationOnly")) {
+    val request: NavigationRequest? = underModalProgress(project, ActionsBundle.actionText("GotoDeclarationOnly")) {
         requestor.navigationRequest()
     }
     if (request != null) {
@@ -101,7 +106,6 @@ internal fun navigateRequestLazy(project: Project, requestor: NavigationRequesto
 @RequiresEdt
 fun navigateRequest(project: Project, request: NavigationRequest, dataContext: DataContext? = null) {
     EDT.assertIsEdt()
-    val log: Logger = Logger.getInstance(GotoDeclarationOrUsageHandler2Splitted::class.java)
     IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
 
     when (request) {
@@ -116,11 +120,11 @@ fun navigateRequest(project: Project, request: NavigationRequest, dataContext: D
         // TODO: make RawNavigationRequest navigate to the next splitted tab or a new splitted tab too
         // TODO: We need to get the target `VirtualFile` file from `RawNavigationRequest.navigatable` to pass to `receiveNextWindowPane`
         is RawNavigationRequest -> {
-            log.info("navigateRequest - RawNavigationRequest - navigatable is ${request.navigatable::class.simpleName}")
+            LOG.debug { "navigateRequest - RawNavigationRequest - navigatable is ${request.navigatable::class.simpleName}" }
         }
 
         else -> {
-            error("navigateRequest - unsupported request ${request.javaClass.name}")
+            LOG.error("navigateRequest - unsupported request ${request.javaClass.name}")
         }
     }
     navigateBlocking(project, request, NavigationOptions.requestFocus(), dataContext)
@@ -133,13 +137,13 @@ inline fun notifyNowhereToGo(project: Project, editor: Editor, file: PsiFile, of
     }
 }
 
-fun isUnderDoubleClick(): Boolean {
-    val event = IdeEventQueue.getInstance().trueCurrentEvent
+inline fun isUnderDoubleClick(): Boolean {
+    val event: AWTEvent = IdeEventQueue.getInstance().trueCurrentEvent
     return event is MouseEvent && event.clickCount == 2
 }
 
-fun isKeywordUnderCaret(project: Project, file: PsiFile, offset: Int): Boolean {
-    val elementAtCaret = file.findElementAt(offset) ?: return false
+inline fun isKeywordUnderCaret(project: Project, file: PsiFile, offset: Int): Boolean {
+    val elementAtCaret: PsiElement = file.findElementAt(offset) ?: return false
     val namesValidator = LanguageNamesValidation.INSTANCE.forLanguage(elementAtCaret.language)
     return namesValidator.isKeyword(elementAtCaret.text, project)
 }

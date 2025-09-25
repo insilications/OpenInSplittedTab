@@ -22,19 +22,15 @@ The actions have no shortcuts assigned by default and are accessible in the "Go 
 - **Gradle**: 9.0 or higher
 
 ### Using Gradle Wrapper (Recommended)
-
 ```bash
-# Build the plugin
-./gradlew build
+# Build the plugin. Creates the *.zip distribution file in `build/distributions/`
+./gradlew buildPlugin
 
 # Verify plugin compatibility
 ./gradlew verifyPlugin
 
 # Reports available dependency upgrades
 ./gradlew dependencyUpdates
-
-# Build distribution in `build/distributions/`
-./gradlew buildPlugin
 ```
 
 ## Installation

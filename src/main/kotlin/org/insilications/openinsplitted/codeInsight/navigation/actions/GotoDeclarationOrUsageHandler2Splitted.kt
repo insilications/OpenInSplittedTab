@@ -26,14 +26,14 @@ import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.psi.PsiFile
 import com.intellij.ui.list.createTargetPopup
+import org.insilications.openinsplitted.debug
 import org.jetbrains.annotations.ApiStatus.Internal
+import java.lang.invoke.MethodHandle
+import java.lang.invoke.MethodHandles
+import java.lang.invoke.MethodType
+import java.lang.reflect.Field
 import java.lang.reflect.Method
-import kotlin.reflect.KClass
-import kotlin.reflect.KFunction
-import kotlin.reflect.full.companionObject
-import kotlin.reflect.full.companionObjectInstance
-import kotlin.reflect.full.declaredFunctions
-import kotlin.reflect.jvm.isAccessible
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * "Go To Declaration Or Usages" action result
@@ -62,6 +62,65 @@ class GotoDeclarationOrUsageHandler2Splitted() : CodeInsightActionHandler {
     companion object {
         private val LOG: Logger = Logger.getInstance(GotoDeclarationOrUsageHandler2Splitted::class.java)
 
+        // Cache reflective lookups to avoid repeated scanning on every invocation.
+        private val gotoDeclarationOrUsagesHandle: MethodHandle? by lazy(LazyThreadSafetyMode.PUBLICATION) {
+            try {
+                val handlerClass: Class<GotoDeclarationOrUsageHandler2> = GotoDeclarationOrUsageHandler2::class.java
+                val companionField: Field = handlerClass.getDeclaredField("Companion").apply { isAccessible = true }
+                // `com.intellij.codeInsight.navigation.actions.GotoDeclarationOrUsageHandler2.Companion.gotoDeclarationOrUsages` is
+                // a regular (non `@JvmStatic`) function declared inside a companion object.
+                // It compiles as an instance companion member method on the generated Companion class.
+                // Instance methods are not static, they need a receiver, the companion object instance, when invoked via reflection.
+                // If the companion function were annotated with `@JvmStatic`, the compiler would emit a static method on the outer class.
+                // That static method could then be invoked without a receiver via reflection.
+                val companionInstance: Any = companionField.get(null)
+                val companionClass: Class<*> = companionInstance.javaClass
+                val intType: Class<Int> = Int::class.javaPrimitiveType ?: Integer.TYPE
+                val method: Method = companionClass.getDeclaredMethod(
+                    "gotoDeclarationOrUsages",
+                    Project::class.java,
+                    Editor::class.java,
+                    PsiFile::class.java,
+                    intType
+                ).apply { isAccessible = true }
+
+                MethodHandles.lookup()
+                    .unreflect(method)
+                    .bindTo(companionInstance)
+                    .asType(
+                        MethodType.methodType(
+                            Any::class.java,
+                            Project::class.java,
+                            Editor::class.java,
+                            PsiFile::class.java,
+                            intType
+                        )
+                    )
+            } catch (t: Throwable) {
+                LOG.warn("Failed to resolve gotoDeclarationOrUsages via reflection", t)
+                null
+            }
+        }
+
+        private val showUsagesHandle: MethodHandle? by lazy(LazyThreadSafetyMode.PUBLICATION) {
+            val method: Method = ShowUsagesAction::class.java.methods.firstOrNull {
+                it.name == "showUsages" && it.parameterCount == 5
+            } ?: return@lazy null
+
+            try {
+                method.isAccessible = true
+                MethodHandles.lookup().unreflect(method)
+            } catch (t: Throwable) {
+                LOG.warn("Failed to resolve ShowUsagesAction.showUsages via reflection", t)
+                null
+            }
+        }
+
+        // Per-class caches: `Method` must be invoked on an instance of its declaring class.
+        private val actionDataResultMethodCache = ConcurrentHashMap<Class<*>, Method>()
+        private val resultNavGetterCache = ConcurrentHashMap<Class<*>, Method>()
+        private val resultTargetVariantsGetterCache = ConcurrentHashMap<Class<*>, Method>()
+
         /**
          * Reflectively call `com.intellij.codeInsight.navigation.actions.GotoDeclarationOrUsageHandler2.Companion.gotoDeclarationOrUsages`
          * and parse its result, returning a `GTDUActionResultMirror`. The code path behind `gotoDeclarationOrUsages` relies
@@ -72,38 +131,45 @@ class GotoDeclarationOrUsageHandler2Splitted() : CodeInsightActionHandler {
                 project,
                 CodeInsightBundle.message("progress.title.resolving.reference")
             ) {
-                // 1) Resolve private companion method: gotoDeclarationOrUsages(Project, Editor, PsiFile, Int)
-                val outerK: KClass<GotoDeclarationOrUsageHandler2> = GotoDeclarationOrUsageHandler2::class
-                val companionK: KClass<*> = outerK.companionObject ?: return@underModalProgress null
-                val companionInstance = outerK.companionObjectInstance ?: return@underModalProgress null
-
-                val funGoto: KFunction<*> = companionK.declaredFunctions.firstOrNull {
-                    it.name == "gotoDeclarationOrUsages" && it.parameters.size == 5 // receiver + 4 args
+                // 1) Resolve the private companion non `@JvmStatic` method (cached):
+                // gotoDeclarationOrUsages(Project, Editor, PsiFile, Int): GTDUActionData?
+                val gotoHandle: MethodHandle = gotoDeclarationOrUsagesHandle ?: return@underModalProgress null
+                val actionData = try {
+                    gotoHandle.invokeWithArguments(project, editor, file, offset)
+                } catch (t: Throwable) {
+                    LOG.warn("Failed to invoke gotoDeclarationOrUsages", t)
+                    return@underModalProgress null
                 } ?: return@underModalProgress null
 
-                funGoto.isAccessible = true
-                val actionData: Any = funGoto.call(companionInstance, project, editor, file, offset) ?: return@underModalProgress null
-
-                // 2) actionData.result(): Any?
-                val resultMethod: Method = actionData.javaClass.methods.firstOrNull { it.name == "result" && it.parameterCount == 0 }
+                // 2) Resolve the internal GTDUActionData.result(): GTDUActionResult?
+                val actionDataClass: Class<Any> = actionData.javaClass
+                val resultMethod: Method = actionDataResultMethodCache[actionDataClass]
+                    ?: actionDataClass.methods.firstOrNull { it.name == "result" && it.parameterCount == 0 }
+                        ?.also { it.isAccessible = true; actionDataResultMethodCache[actionDataClass] = it }
                     ?: return@underModalProgress null
-                resultMethod.isAccessible = true
+                // Call GTDUActionData.result(): GTDUActionResult?
                 val rawResult = resultMethod.invoke(actionData) ?: return@underModalProgress null
 
-                // 3) Distinguish GTD vs SU via Java-style getters
+                // 3) Distinguish the `GTDUActionResult.GTD` vs `GTDUActionResult.SU` classes via Java-style getters
+                // `GTDUActionResult.GTD` holds the `navigationActionResult` property of type `NavigationActionResult`
+                // `GTDUActionResult.SU` holds the `targetVariants` property, a `List` of internal type `TargetVariant`
                 val resultClass: Class<Any> = rawResult.javaClass
-
-                val navMethod: Method? =
-                    resultClass.methods.firstOrNull { it.name == "getNavigationActionResult" && it.parameterCount == 0 }
-                val tvMethod: Method? = resultClass.methods.firstOrNull { it.name == "getTargetVariants" && it.parameterCount == 0 }
+                val navMethod: Method? = resultNavGetterCache[resultClass]
+                    ?: resultClass.methods.firstOrNull { it.name == "getNavigationActionResult" && it.parameterCount == 0 }
+                        ?.also { resultNavGetterCache[resultClass] = it }
+                val tvMethod: Method? = resultTargetVariantsGetterCache[resultClass]
+                    ?: resultClass.methods.firstOrNull { it.name == "getTargetVariants" && it.parameterCount == 0 }
+                        ?.also { resultTargetVariantsGetterCache[resultClass] = it }
 
                 when {
                     navMethod != null -> {
-                        val navigationActionResult = navMethod.invoke(rawResult)!! as NavigationActionResult
+                        // Get the `navigationActionResult` property value of type `NavigationActionResult`
+                        val navigationActionResult: NavigationActionResult = navMethod.invoke(rawResult)!! as NavigationActionResult
                         GTDUActionResultMirror.GTD(navigationActionResult)
                     }
 
                     tvMethod != null -> {
+                        // Get the `targetVariants` property value, a `List` of internal type `TargetVariant`
                         val variants: List<*> =
                             tvMethod.invoke(rawResult) as? List<*> ?: return@underModalProgress null
                         if (variants.isEmpty()) return@underModalProgress null
@@ -121,7 +187,6 @@ class GotoDeclarationOrUsageHandler2Splitted() : CodeInsightActionHandler {
 
     override fun startInWriteAction(): Boolean = false
 
-
     /**
      * This is where the main work of the "GotoDeclarationActionSplitted" action happens, via our current
      * `GotoDeclarationOrUsageHandler2Splitted` handler class.
@@ -131,12 +196,11 @@ class GotoDeclarationOrUsageHandler2Splitted() : CodeInsightActionHandler {
      */
     override fun invoke(project: Project, editor: Editor, file: PsiFile) {
         if (navigateToLookupItem(project, editor)) {
-            LOG.info("navigateToLookupItem")
-            return
+            LOG.debug { "navigateToLookupItem" }
         }
 
         if (EditorUtil.isCaretInVirtualSpace(editor)) {
-            LOG.info("EditorUtil.isCaretInVirtualSpace")
+            LOG.debug { "EditorUtil.isCaretInVirtualSpace" }
             return
         }
 
@@ -145,19 +209,19 @@ class GotoDeclarationOrUsageHandler2Splitted() : CodeInsightActionHandler {
             when (val actionResult: GTDUActionResultMirror? = gotoDeclarationOrUsages_HACK(project, editor, file, offset)) {
                 // The result of our action must be of type "Go To Declaration"
                 is GTDUActionResultMirror.GTD -> {
-                    LOG.info("GTDUActionResultMirror.GTD - gotoDeclarationOnly")
+                    LOG.debug { "GTDUActionResultMirror.GTD - gotoDeclarationOnly" }
                     gotoDeclarationOnly(project, editor, actionResult.navigationActionResult)
                 }
 
                 // The result of our action must be of type "Show Usages"
                 is GTDUActionResultMirror.SU -> {
-                    LOG.info("GTDUActionResultMirror.SU - showUsages")
+                    LOG.debug { "GTDUActionResultMirror.SU - showUsages" }
                     showUsages_HACK(project, editor, file, actionResult.targetVariants)
                 }
 
                 // No viable result. Nowhere to go.
                 null -> {
-                    LOG.info("notifyNowhereToGo")
+                    LOG.debug { "notifyNowhereToGo" }
                     notifyNowhereToGo(project, editor, file, offset)
                 }
             }
@@ -169,7 +233,7 @@ class GotoDeclarationOrUsageHandler2Splitted() : CodeInsightActionHandler {
         }
     }
 
-    private inline fun gotoDeclarationOnly(
+    private fun gotoDeclarationOnly(
         project: Project,
         editor: Editor,
         actionResult: NavigationActionResult,
@@ -197,7 +261,7 @@ class GotoDeclarationOrUsageHandler2Splitted() : CodeInsightActionHandler {
      * Reflectively call the `com.intellij.find.actions.ShowUsagesAction.showUsages` static method
      * We are forced to use reflection to avoid referencing the internal `com.intellij.find.actions.TargetVariant`
      */
-    private inline fun showUsages_HACK(
+    private fun showUsages_HACK(
         project: Project,
         editor: Editor,
         file: PsiFile,
@@ -211,29 +275,33 @@ class GotoDeclarationOrUsageHandler2Splitted() : CodeInsightActionHandler {
             .add(PlatformCoreDataKeys.CONTEXT_COMPONENT, editor.contentComponent)
             .build()
 
-        // Resolve `showUsages` from `com.intellij.find.actions.ShowUsagesAction`
+        // Resolve the `showUsages` static method from `com.intellij.find.actions.ShowUsagesAction`
         // showUsages(Project, List<? extends @NotNull TargetVariant>, RelativePoint, Editor, SearchScope)
-        val showUsages = ShowUsagesAction::class.java.methods.firstOrNull {
-            it.name == "showUsages" && it.parameterCount == 5
-        }?.apply { isAccessible = true } ?: return
+        val showUsages = showUsagesHandle ?: return
 
         // We use this to preemptively set the current window to the next splitted tab or a new splitted tab.
         // This forces `showUsages` to reuse that tab. This workaround might be fragile, but it works perfectly.
         receiveNextWindowPane(project, null)
 
         try {
-            showUsages.invoke(
-                null, project, searchTargets,
-                JBPopupFactory.getInstance().guessBestPopupLocation(editor), editor,
-                FindUsagesOptions.findScopeByName(project, dataContext, FindUsagesSettings.getInstance().defaultScopeName)
+            showUsages.invokeWithArguments(
+                project,
+                searchTargets,
+                JBPopupFactory.getInstance().guessBestPopupLocation(editor),
+                editor,
+                FindUsagesOptions.findScopeByName(
+                    project,
+                    dataContext,
+                    FindUsagesSettings.getInstance().defaultScopeName
+                )
             )
         } catch (_: IndexNotReadyException) {
             DumbService.getInstance(project).showDumbModeNotificationForFunctionality(
                 CodeInsightBundle.message("message.navigation.is.not.available.here.during.index.update"),
                 DumbModeBlockedFunctionality.GotoDeclarationOrUsage
             )
+        } catch (t: Throwable) {
+            LOG.warn("Failed to invoke ShowUsagesAction.showUsages", t)
         }
     }
 }
-
-

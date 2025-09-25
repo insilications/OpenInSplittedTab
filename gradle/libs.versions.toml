@@ -3,7 +3,7 @@ kotlin = "2.2.20"
 idea = "2025.2.1"
 intellijPlatformPlugin = "2.9.0"
 pluginVerifier = "1.395"
-benManesVersions = "0.52.0"
+benManesVersions = "0.53.0"
 
 [libraries]
 pluginVerifier-cli = { group = "org.jetbrains.intellij.plugins", name = "verifier-cli", version.ref = "pluginVerifier" }
