@@ -54,6 +54,7 @@ private val LOG: Logger = Logger.getInstance(GotoDeclarationOrUsageHandler2Split
  * @param project
  * @param file
  */
+@RequiresEdt
 fun receiveNextWindowPane(
     project: Project,
     file: VirtualFile?,
@@ -90,9 +91,14 @@ internal inline fun navigateToLookupItem(project: Project, editor: Editor): Bool
  * Obtains a [NavigationRequest] instance from [requestor] on a background thread, and calls [navigateRequest].
  */
 @Internal
-internal fun navigateRequestLazy(project: Project, requestor: NavigationRequestor, editor: Editor) {
+internal inline fun navigateRequestLazy(project: Project, requestor: NavigationRequestor, editor: Editor) {
     EDT.assertIsEdt()
     @Suppress("DialogTitleCapitalization")
+//    Obsolescence notice
+//            See ProgressIndicator notice.
+//    Consider getting rid of a modal progress altogether, for example, by using a background progress,
+//    or use com.intellij.platform.ide.progress.TasksKt.runWithModalProgressBlocking
+//    or com.intellij.platform.ide.progress.TasksKt.withModalProgress
     val request: NavigationRequest? = underModalProgress(project, ActionsBundle.actionText("GotoDeclarationOnly")) {
         requestor.navigationRequest()
     }
