@@ -58,7 +58,7 @@ sealed class GTDUActionResultMirror {
     }
 }
 
-class GotoDeclarationOrUsageHandler2Splitted() : CodeInsightActionHandler {
+class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
     companion object {
         private val LOG: Logger = Logger.getInstance(GotoDeclarationOrUsageHandler2Splitted::class.java)
 

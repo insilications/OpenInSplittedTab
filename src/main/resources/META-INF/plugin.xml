@@ -32,6 +32,9 @@
         <action class="org.insilications.openinsplitted.codeInsight.navigation.actions.GotoDeclarationActionSplitted" description="Opens the declaration/usage of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses that tab to navigate to the target symbol. Otherwise, a new splitted tab is opened. If there are multiple declarations/usages, a popup will appear, allowing you to select one." id="GotoDeclarationActionSplitted" text="Declaration or Usages (Splitted)">
             <add-to-group anchor="last" group-id="EditorPopupMenu.GoTo" />
         </action>
+        <action class="org.insilications.openinsplitted.codeInsight.navigation.actions.GotoImplementationActionSplitted" description="Opens the implementation of the currently selected symbol in the next available splitted tab. If a splitted tab is already open, it uses that tab to navigate to the target symbol. Otherwise, a new splitted tab is opened. If there are multiple implementations, a popup will appear, allowing you to select one." id="GotoImplementationActionSplitted" text="Implementation(s) (Splitted)">
+            <add-to-group anchor="last" group-id="EditorPopupMenu.GoTo" />
+        </action>
     </actions>
 
 </idea-plugin>
