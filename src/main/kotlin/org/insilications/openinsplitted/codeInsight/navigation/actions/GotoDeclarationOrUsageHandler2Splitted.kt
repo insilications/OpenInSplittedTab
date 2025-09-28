@@ -8,7 +8,6 @@ import com.intellij.codeInsight.navigation.impl.NavigationActionResult
 import com.intellij.codeInsight.navigation.impl.NavigationActionResult.MultipleTargets
 import com.intellij.codeInsight.navigation.impl.NavigationActionResult.SingleTarget
 import com.intellij.find.FindUsagesSettings
-import com.intellij.find.actions.ShowUsagesAction
 import com.intellij.find.findUsages.FindUsagesOptions
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
@@ -25,10 +24,10 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.psi.PsiFile
-import com.intellij.psi.search.SearchScope
-import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.list.createTargetPopup
 import org.insilications.openinsplitted.debug
+import org.insilications.openinsplitted.find.actions.ShowUsagesActionSplitted
+import org.insilications.openinsplitted.find.actions.TargetVariant
 import org.jetbrains.annotations.ApiStatus.Internal
 import java.lang.invoke.MethodHandle
 import java.lang.invoke.MethodHandles
@@ -52,7 +51,7 @@ sealed class GTDUActionResultMirror {
     /**
      * Show Usages
      */
-    class SU(val targetVariants: List<*>) : GTDUActionResultMirror() {
+    class SU(val targetVariants: List<TargetVariant>) : GTDUActionResultMirror() {
 
         init {
             require(targetVariants.isNotEmpty())
@@ -64,8 +63,8 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
     companion object {
         private val LOG: Logger = Logger.getInstance(GotoDeclarationOrUsageHandler2Splitted::class.java)
 
-        // Cache reflective lookups to avoid repeated scanning on every invocation.
         /**
+         * Cache reflective lookups to avoid repeated scanning on every invocation.
          * A strongly-typed invoker for the reflective `gotoDeclarationOrUsages` call.
          * The lazy initializer performs the reflective lookup once and returns a callable
          * function if successful, or null otherwise.
@@ -117,32 +116,6 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
                     }
                 }
 
-        private val showUsagesCachedInvoker: ((Project, List<*>, RelativePoint, Editor, SearchScope) -> Unit)?
-                by lazy(LazyThreadSafetyMode.PUBLICATION) {
-                    try {
-                        val method: Method = ShowUsagesAction::class.java.methods.firstOrNull {
-                            it.name == "showUsages" && it.parameterCount == 5
-                        } ?: return@lazy null
-
-                        method.isAccessible = true
-                        val handle = MethodHandles.lookup().unreflect(method);
-
-                        // Return the strongly-typed invoker lambda.
-                        { project, targetVariants, popupPosition, editor, searchScope ->
-                            handle.invokeWithArguments(
-                                project,
-                                targetVariants,
-                                popupPosition,
-                                editor,
-                                searchScope
-                            )
-                        }
-                    } catch (t: Throwable) {
-                        LOG.warn("Failed to resolve ShowUsagesAction.showUsages via reflection", t)
-                        null
-                    }
-                }
-
         // Per-class caches: `Method` must be invoked on an instance of its declaring class.
         private val actionDataResultMethodCache = ConcurrentHashMap<Class<*>, Method>()
         private val resultNavGetterCache = ConcurrentHashMap<Class<*>, Method>()
@@ -179,7 +152,7 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
 
                 // 3) Distinguish the `GTDUActionResult.GTD` vs `GTDUActionResult.SU` classes via Java-style getters
                 // `GTDUActionResult.GTD` holds the `navigationActionResult` property of type `NavigationActionResult`
-                // `GTDUActionResult.SU` holds the `targetVariants` property, a `List` of internal type `TargetVariant`
+                // `GTDUActionResult.SU` holds the `targetVariants` property, a `List<TargetVariant>`
                 val resultClass: Class<Any> = rawResult.javaClass
                 val navMethod: Method? = resultNavGetterCache[resultClass]
                     ?: resultClass.methods.firstOrNull { it.name == "getNavigationActionResult" && it.parameterCount == 0 }
@@ -196,9 +169,10 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
                     }
 
                     tvMethod != null -> {
-                        // Get the `targetVariants` property value, a `List` of internal type `TargetVariant`
-                        val variants: List<*> =
-                            tvMethod.invoke(rawResult) as? List<*> ?: return@underModalProgress null
+                        // Get the `targetVariants` property value, a `List<TargetVariant>`
+                        @Suppress("UNCHECKED_CAST")
+                        val variants: List<TargetVariant> =
+                            tvMethod.invoke(rawResult) as? List<TargetVariant> ?: return@underModalProgress null
                         if (variants.isEmpty()) return@underModalProgress null
 
                         GTDUActionResultMirror.SU(variants) // non-empty
@@ -243,7 +217,7 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
                 // The result of our action must be of type "Show Usages"
                 is GTDUActionResultMirror.SU -> {
                     LOG.debug { "GTDUActionResultMirror.SU - showUsages" }
-                    showUsages_HACK(project, editor, file, actionResult.targetVariants)
+                    showUsages(project, editor, file, actionResult.targetVariants)
                 }
 
                 // No viable result. Nowhere to go.
@@ -284,15 +258,11 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
         }
     }
 
-    /**
-     * Reflectively call the `com.intellij.find.actions.ShowUsagesAction.showUsages` static method
-     * We are forced to use reflection to avoid referencing the internal `com.intellij.find.actions.TargetVariant`
-     */
-    private fun showUsages_HACK(
+    private fun showUsages(
         project: Project,
         editor: Editor,
         file: PsiFile,
-        searchTargets: List<*>
+        searchTargets: List<TargetVariant>
     ) {
         require(searchTargets.isNotEmpty())
         // Build DataContext for scope resolution (public API)
@@ -302,16 +272,12 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
             .add(PlatformCoreDataKeys.CONTEXT_COMPONENT, editor.contentComponent)
             .build()
 
-        // Resolve the `showUsages` static method from `com.intellij.find.actions.ShowUsagesAction`
-        // showUsages(Project, List<? extends @NotNull TargetVariant>, RelativePoint, Editor, SearchScope)
-        val showUsagesInvoker = showUsagesCachedInvoker ?: return
-
         // We use this to preemptively set the current window to the next splitted tab or a new splitted tab.
         // This forces `showUsages` to reuse that tab. This workaround might be fragile, but it works perfectly.
         receiveNextWindowPane(project, null)
 
         try {
-            showUsagesInvoker(
+            ShowUsagesActionSplitted.showUsages(
                 project,
                 searchTargets,
                 JBPopupFactory.getInstance().guessBestPopupLocation(editor),
@@ -327,8 +293,6 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
                 CodeInsightBundle.message("message.navigation.is.not.available.here.during.index.update"),
                 DumbModeBlockedFunctionality.GotoDeclarationOrUsage
             )
-        } catch (t: Throwable) {
-            LOG.warn("Failed to invoke ShowUsagesAction.showUsages", t)
         }
     }
 }

@@ -11,15 +11,15 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.SearchScope
 import com.intellij.ui.awt.RelativePoint
+import org.insilications.openinsplitted.debug
 import org.jetbrains.annotations.ApiStatus
 import java.lang.invoke.MethodHandle
 import java.lang.invoke.MethodHandles
 import java.lang.invoke.MethodType
 
-
 class ShowUsagesActionSplitted {
     companion object {
-        private val LOG: Logger = Logger.getInstance(ShowUsagesActionSplitted::class.java)
+        private val LOG: Logger = Logger.getInstance("org.insilications.openinsplitted")
 
         private val createActionHandlerCachedInvoker: ((Project, SearchScope, SearchTarget) -> ShowUsagesActionHandler)?
                 by lazy(LazyThreadSafetyMode.PUBLICATION) {
@@ -74,6 +74,7 @@ class ShowUsagesActionSplitted {
             editor: Editor,
             searchScope: SearchScope
         ) {
+            LOG.debug { "ShowUsagesActionSplitted - showUsages" }
 //            SlowOperations.startSection(SlowOperations.ACTION_PERFORM).use { ignored ->
             findShowUsages(
                 project, editor, popupPosition, targetVariants, FindBundle.message("show.usages.ambiguous.title"),
@@ -90,10 +91,6 @@ class ShowUsagesActionSplitted {
         ): UsageVariantHandler {
             return object : UsageVariantHandler {
                 override fun handleTarget(target: SearchTarget) {
-//                    ShowTargetUsagesActionHandlerSplitted.showUsages(
-//                        project, searchScope, target,
-//                        ShowUsagesParameters.initial(project, editor, popupPosition)
-//                    )
                     showElementUsages(
                         project, searchScope, target,
                         ShowUsagesParameters.initial(project, editor, popupPosition)
@@ -106,7 +103,9 @@ class ShowUsagesActionSplitted {
             }
         }
 
-        fun startFindUsages(element: PsiElement, popupPosition: RelativePoint, editor: Editor) {}
+        fun startFindUsages(element: PsiElement, popupPosition: RelativePoint, editor: Editor) {
+            LOG.debug { "ShowUsagesActionSplitted - startFindUsages" }
+        }
 
         @ApiStatus.Experimental
         fun showElementUsages(project: Project, searchScope: SearchScope, target: SearchTarget, parameters: ShowUsagesParameters) {
@@ -117,6 +116,7 @@ class ShowUsagesActionSplitted {
                 LOG.warn("Failed to invoke gotoDeclarationOrUsages", t)
                 return
             }
+            LOG.debug { "ShowUsagesActionSplitted - showElementUsages" }
 //            showElementUsagesWithResult(parameters, actionHandler)
         }
     }

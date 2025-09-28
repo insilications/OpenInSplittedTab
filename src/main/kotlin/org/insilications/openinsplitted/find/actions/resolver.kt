@@ -8,6 +8,7 @@ import com.intellij.codeInsight.hint.HintManager
 import com.intellij.codeInsight.navigation.targetPresentation
 import com.intellij.find.FindBundle
 import com.intellij.find.usages.api.SearchTarget
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
@@ -17,7 +18,10 @@ import com.intellij.psi.PsiElement
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.list.createTargetPopup
 import com.intellij.usages.UsageTarget
+import org.insilications.openinsplitted.debug
 import org.jetbrains.annotations.ApiStatus
+
+private val LOG: Logger = Logger.getInstance("org.insilications.openinsplitted")
 
 interface UsageVariantHandler {
     @ApiStatus.Internal
@@ -33,6 +37,7 @@ fun findShowUsages(
     @PopupTitle popupTitle: String,
     handler: UsageVariantHandler
 ) {
+    LOG.debug { "resolver - findShowUsages" }
     when (allTargets.size) {
         0 -> {
             val message = FindBundle.message("find.no.usages.at.cursor.error")
@@ -44,10 +49,12 @@ fun findShowUsages(
         }
 
         1 -> {
+            LOG.debug { "resolver - allTargets.single().handle(handler)" }
             allTargets.single().handle(handler)
         }
 
         else -> {
+            LOG.debug { "resolver - createTargetPopup(...)" }
             createTargetPopup(popupTitle, allTargets, TargetVariant::presentation) {
                 it.handle(handler)
             }.show(popupPosition)
