@@ -143,20 +143,6 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
                     }
                 }
 
-        private val showUsagesHandle: MethodHandle? by lazy(LazyThreadSafetyMode.PUBLICATION) {
-            val method: Method = ShowUsagesAction::class.java.methods.firstOrNull {
-                it.name == "showUsages" && it.parameterCount == 5
-            } ?: return@lazy null
-
-            try {
-                method.isAccessible = true
-                MethodHandles.lookup().unreflect(method)
-            } catch (t: Throwable) {
-                LOG.warn("Failed to resolve ShowUsagesAction.showUsages via reflection", t)
-                null
-            }
-        }
-
         // Per-class caches: `Method` must be invoked on an instance of its declaring class.
         private val actionDataResultMethodCache = ConcurrentHashMap<Class<*>, Method>()
         private val resultNavGetterCache = ConcurrentHashMap<Class<*>, Method>()
@@ -318,14 +304,14 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
 
         // Resolve the `showUsages` static method from `com.intellij.find.actions.ShowUsagesAction`
         // showUsages(Project, List<? extends @NotNull TargetVariant>, RelativePoint, Editor, SearchScope)
-        val showUsages = showUsagesHandle ?: return
+        val showUsagesInvoker = showUsagesCachedInvoker ?: return
 
         // We use this to preemptively set the current window to the next splitted tab or a new splitted tab.
         // This forces `showUsages` to reuse that tab. This workaround might be fragile, but it works perfectly.
         receiveNextWindowPane(project, null)
 
         try {
-            showUsages.invokeWithArguments(
+            showUsagesInvoker(
                 project,
                 searchTargets,
                 JBPopupFactory.getInstance().guessBestPopupLocation(editor),
