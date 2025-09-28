@@ -27,7 +27,6 @@ import com.intellij.psi.PsiFile
 import com.intellij.ui.list.createTargetPopup
 import org.insilications.openinsplitted.debug
 import org.insilications.openinsplitted.find.actions.ShowUsagesActionSplitted
-import org.insilications.openinsplitted.find.actions.TargetVariant
 import org.jetbrains.annotations.ApiStatus.Internal
 import java.lang.invoke.MethodHandle
 import java.lang.invoke.MethodHandles
@@ -51,7 +50,7 @@ sealed class GTDUActionResultMirror {
     /**
      * Show Usages
      */
-    class SU(val targetVariants: List<TargetVariant>) : GTDUActionResultMirror() {
+    class SU(val targetVariants: List<Any>) : GTDUActionResultMirror() {
 
         init {
             require(targetVariants.isNotEmpty())
@@ -171,11 +170,13 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
                     tvMethod != null -> {
                         // Get the `targetVariants` property value, a `List<TargetVariant>`
                         @Suppress("UNCHECKED_CAST")
-                        val variants: List<TargetVariant> =
-                            tvMethod.invoke(rawResult) as? List<TargetVariant> ?: return@underModalProgress null
-                        if (variants.isEmpty()) return@underModalProgress null
+                        val variants = tvMethod.invoke(rawResult) as? List<Any?> ?: return@underModalProgress null
+                        if (variants.isEmpty() || variants.any { it == null }) return@underModalProgress null
 
-                        GTDUActionResultMirror.SU(variants) // non-empty
+                        @Suppress("UNCHECKED_CAST")
+                        val nonNullVariants = variants as List<Any>
+
+                        GTDUActionResultMirror.SU(nonNullVariants) // non-empty
                     }
 
                     else -> null
@@ -262,7 +263,7 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
         project: Project,
         editor: Editor,
         file: PsiFile,
-        searchTargets: List<TargetVariant>
+        searchTargets: List<Any>
     ) {
         require(searchTargets.isNotEmpty())
         // Build DataContext for scope resolution (public API)

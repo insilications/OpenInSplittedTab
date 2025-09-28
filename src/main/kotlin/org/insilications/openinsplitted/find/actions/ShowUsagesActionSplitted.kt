@@ -69,7 +69,7 @@ class ShowUsagesActionSplitted {
         @ApiStatus.Internal
         fun showUsages(
             project: Project,
-            targetVariants: List<TargetVariant>,
+            targetVariants: List<Any>,
             popupPosition: RelativePoint,
             editor: Editor,
             searchScope: SearchScope
@@ -105,6 +105,7 @@ class ShowUsagesActionSplitted {
 
         fun startFindUsages(element: PsiElement, popupPosition: RelativePoint, editor: Editor) {
             LOG.debug { "ShowUsagesActionSplitted - startFindUsages" }
+            // TODO: Implement my custom `startFindUsages` functionality here.
         }
 
         @ApiStatus.Experimental
@@ -117,7 +118,8 @@ class ShowUsagesActionSplitted {
                 return
             }
             LOG.debug { "ShowUsagesActionSplitted - showElementUsages" }
-//            showElementUsagesWithResult(parameters, actionHandler)
+            // TODO: Implement my custom `showElementUsagesWithResult` functionality here.
+            // showElementUsagesWithResult(parameters, actionHandler)
         }
     }
 }
