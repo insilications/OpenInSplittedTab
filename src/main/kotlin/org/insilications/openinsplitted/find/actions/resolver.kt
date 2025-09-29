@@ -31,9 +31,9 @@ private val platformUsageVariantHandlerClass: Class<*>? by lazy(LazyThreadSafety
 }
 
 private val platformFindShowUsagesInvoker: MethodHandle? by lazy(LazyThreadSafetyMode.PUBLICATION) {
-    val handlerClass = platformUsageVariantHandlerClass ?: return@lazy null
+    val handlerClass: Class<*> = platformUsageVariantHandlerClass ?: return@lazy null
     try {
-        val resolverClass = Class.forName(PLATFORM_RESOLVER_CLASS)
+        val resolverClass: Class<*> = Class.forName(PLATFORM_RESOLVER_CLASS)
         MethodHandles.publicLookup().findStatic(
             resolverClass,
             "findShowUsages",
@@ -67,7 +67,7 @@ fun findShowUsages(
     @PopupTitle popupTitle: String,
     handler: UsageVariantHandler
 ) {
-    val invoker = platformFindShowUsagesInvoker
+    val invoker: MethodHandle? = platformFindShowUsagesInvoker
     val handlerProxy = createPlatformHandlerProxy(handler)
 
     if (invoker == null || handlerProxy == null) {
@@ -83,17 +83,17 @@ fun findShowUsages(
 }
 
 private fun createPlatformHandlerProxy(handler: UsageVariantHandler): Any? {
-    val handlerClass = platformUsageVariantHandlerClass ?: return null
+    val handlerClass: Class<*> = platformUsageVariantHandlerClass ?: return null
     return Proxy.newProxyInstance(handlerClass.classLoader, arrayOf(handlerClass)) { proxy, method, args ->
         when (method.name) {
             "handleTarget" -> {
-                val target = args?.getOrNull(0) as? SearchTarget ?: return@newProxyInstance null
+                val target: SearchTarget = args?.getOrNull(0) as? SearchTarget ?: return@newProxyInstance null
                 handler.handleTarget(target)
                 null
             }
 
             "handlePsi" -> {
-                val element = args?.getOrNull(0) as? PsiElement ?: return@newProxyInstance null
+                val element: PsiElement = args?.getOrNull(0) as? PsiElement ?: return@newProxyInstance null
                 handler.handlePsi(element)
                 null
             }

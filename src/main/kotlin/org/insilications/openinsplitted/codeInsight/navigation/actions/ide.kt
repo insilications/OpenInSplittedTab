@@ -40,7 +40,7 @@ import java.awt.AWTEvent
 import java.awt.event.MouseEvent
 import javax.swing.SwingConstants
 
-private val LOG: Logger = Logger.getInstance(GotoDeclarationOrUsageHandler2Splitted::class.java)
+private val LOG: Logger = Logger.getInstance("org.insilications.openinsplitted")
 
 /**
  * If `nextEditorWindow` is the same as `activeEditorWindow`, it means there are no splitted tabs.

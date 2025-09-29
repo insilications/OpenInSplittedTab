@@ -28,7 +28,7 @@ import org.insilications.openinsplitted.debug
 
 class GotoImplementationHandlerSplitted : GotoImplementationHandler() {
     companion object {
-        private val LOG: Logger = Logger.getInstance(GotoImplementationHandlerSplitted::class.java)
+        private val LOG: Logger = Logger.getInstance("org.insilications.openinsplitted")
 
     }
 

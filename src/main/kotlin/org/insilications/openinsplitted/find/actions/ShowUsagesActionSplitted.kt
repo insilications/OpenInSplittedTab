@@ -5,17 +5,34 @@ import com.intellij.find.actions.ShowUsagesAction
 import com.intellij.find.actions.ShowUsagesActionHandler
 import com.intellij.find.actions.ShowUsagesParameters
 import com.intellij.find.usages.api.SearchTarget
+import com.intellij.navigation.ItemPresentation
+import com.intellij.navigation.NavigationItem
+import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.text.HtmlBuilder
+import com.intellij.openapi.util.text.HtmlChunk
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.SearchScope
+import com.intellij.ui.ColorUtil
+import com.intellij.ui.ExperimentalUI
+import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.awt.RelativePoint
+import com.intellij.usageView.UsageViewUtil
+import com.intellij.util.concurrency.AppExecutorUtil
+import com.intellij.util.ui.JBUI
 import org.insilications.openinsplitted.debug
 import org.jetbrains.annotations.ApiStatus
+import org.jetbrains.annotations.Nls
+import java.awt.Color
 import java.lang.invoke.MethodHandle
 import java.lang.invoke.MethodHandles
 import java.lang.invoke.MethodType
+import java.util.concurrent.Callable
+
 
 class ShowUsagesActionSplitted {
     companion object {
@@ -103,15 +120,31 @@ class ShowUsagesActionSplitted {
             }
         }
 
-        fun startFindUsages(element: PsiElement, popupPosition: RelativePoint, editor: Editor) {
+        fun startFindUsages(element: PsiElement, popupPosition: RelativePoint, editor: Editor?) {
             LOG.debug { "ShowUsagesActionSplitted - startFindUsages" }
             // TODO: Implement my custom `startFindUsages` functionality here.
+            ReadAction.nonBlocking(Callable { getUsagesTitle(element) }
+            ).expireWhen { editor != null && editor.isDisposed }
+                .finishOnUiThread(ModalityState.nonModal()) { title ->
+                    startFindUsagesWithResult(element, popupPosition, editor, null, title)
+                }
+                .submit(AppExecutorUtil.getAppExecutorService())
+        }
+
+        @ApiStatus.Internal
+        fun startFindUsagesWithResult(
+            element: PsiElement,
+            popupPosition: RelativePoint,
+            editor: Editor?,
+            scope: SearchScope?,
+            @Nls title: String
+        ) {
         }
 
         @ApiStatus.Experimental
         fun showElementUsages(project: Project, searchScope: SearchScope, target: SearchTarget, parameters: ShowUsagesParameters) {
-            val createActionHandlerInvoker = createActionHandlerCachedInvoker ?: return
-            val showTargetUsagesActionHandler = try {
+            val createActionHandlerInvoker: (Project, SearchScope, SearchTarget) -> ShowUsagesActionHandler = createActionHandlerCachedInvoker ?: return
+            val showTargetUsagesActionHandler: ShowUsagesActionHandler = try {
                 createActionHandlerInvoker(project, searchScope, target)
             } catch (t: Throwable) {
                 LOG.warn("Failed to invoke gotoDeclarationOrUsages", t)
@@ -120,6 +153,36 @@ class ShowUsagesActionSplitted {
             LOG.debug { "ShowUsagesActionSplitted - showElementUsages" }
             // TODO: Implement my custom `showElementUsagesWithResult` functionality here.
             // showElementUsagesWithResult(parameters, actionHandler)
+        }
+
+
+        private fun getLocationString(@Nls locationString: String): HtmlChunk {
+            val color: Color = if (ExperimentalUI.isNewUI()) JBUI.CurrentTheme.ContextHelp.FOREGROUND else SimpleTextAttributes.GRAY_ATTRIBUTES.fgColor
+            return HtmlChunk.text(locationString).wrapWith("font").attr("color", "#" + ColorUtil.toHex(color))
+        }
+
+        @Nls
+        private fun getUsagesTitle(element: PsiElement): String {
+            val builder = HtmlBuilder()
+
+            var type = HtmlChunk.text(StringUtil.capitalize(UsageViewUtil.getType(element)))
+            if (ExperimentalUI.isNewUI()) {
+                type = type.bold()
+            }
+
+            builder.append(type).nbsp().append(HtmlChunk.text(UsageViewUtil.getLongName(element)).bold())
+
+            if (element is NavigationItem) {
+                val itemPresentation: ItemPresentation? = (element as NavigationItem).presentation
+                if (itemPresentation != null) {
+                    val locationString: String? = itemPresentation.locationString
+                    if (locationString != null && StringUtil.isNotEmpty(locationString)) {
+                        builder.nbsp().append(getLocationString(locationString))
+                    }
+                }
+            }
+
+            return builder.toString()
         }
     }
 }
