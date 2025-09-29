@@ -21,7 +21,7 @@ private val LOG: Logger = Logger.getInstance("org.insilications.openinsplitted")
 private const val PLATFORM_RESOLVER_CLASS = "com.intellij.find.actions.ResolverKt"
 private const val PLATFORM_USAGE_VARIANT_HANDLER = "com.intellij.find.actions.UsageVariantHandler"
 
-private val platformUsageVariantHandlerClass: Class<*>? by lazy(LazyThreadSafetyMode.PUBLICATION) {
+private val platformUsageVariantHandlerClassCached: Class<*>? by lazy(LazyThreadSafetyMode.PUBLICATION) {
     try {
         Class.forName(PLATFORM_USAGE_VARIANT_HANDLER)
     } catch (t: Throwable) {
@@ -30,8 +30,8 @@ private val platformUsageVariantHandlerClass: Class<*>? by lazy(LazyThreadSafety
     }
 }
 
-private val platformFindShowUsagesInvoker: MethodHandle? by lazy(LazyThreadSafetyMode.PUBLICATION) {
-    val handlerClass: Class<*> = platformUsageVariantHandlerClass ?: return@lazy null
+private val platformFindShowUsagesInvokerCached: MethodHandle? by lazy(LazyThreadSafetyMode.PUBLICATION) {
+    val platformUsageVariantHandlerClass: Class<*> = platformUsageVariantHandlerClassCached ?: return@lazy null
     try {
         val resolverClass: Class<*> = Class.forName(PLATFORM_RESOLVER_CLASS)
         MethodHandles.publicLookup().findStatic(
@@ -44,7 +44,7 @@ private val platformFindShowUsagesInvoker: MethodHandle? by lazy(LazyThreadSafet
                 RelativePoint::class.java,
                 List::class.java,
                 String::class.java,
-                handlerClass
+                platformUsageVariantHandlerClass
             )
         )
     } catch (t: Throwable) {
@@ -67,24 +67,24 @@ fun findShowUsages(
     @PopupTitle popupTitle: String,
     handler: UsageVariantHandler
 ) {
-    val invoker: MethodHandle? = platformFindShowUsagesInvoker
-    val handlerProxy = createPlatformHandlerProxy(handler)
+    val platformFindShowUsagesInvoker: MethodHandle? = platformFindShowUsagesInvokerCached
+    val platformUsageVariantHandlerProxy = createPlatformUsageVariantHandlerProxy(handler)
 
-    if (invoker == null || handlerProxy == null) {
+    if (platformFindShowUsagesInvoker == null || platformUsageVariantHandlerProxy == null) {
         LOG.warn("Falling back – platform findShowUsages unavailable.")
         return
     }
 
     try {
-        invoker.invokeWithArguments(project, editor, popupPosition, allTargets, popupTitle, handlerProxy)
+        platformFindShowUsagesInvoker.invokeWithArguments(project, editor, popupPosition, allTargets, popupTitle, platformUsageVariantHandlerProxy)
     } catch (t: Throwable) {
         LOG.warn("Failed to delegate to platform findShowUsages.", t)
     }
 }
 
-private fun createPlatformHandlerProxy(handler: UsageVariantHandler): Any? {
-    val handlerClass: Class<*> = platformUsageVariantHandlerClass ?: return null
-    return Proxy.newProxyInstance(handlerClass.classLoader, arrayOf(handlerClass)) { proxy, method, args ->
+private fun createPlatformUsageVariantHandlerProxy(handler: UsageVariantHandler): Any? {
+    val platformUsageVariantHandlerClass: Class<*> = platformUsageVariantHandlerClassCached ?: return null
+    return Proxy.newProxyInstance(platformUsageVariantHandlerClass.classLoader, arrayOf(platformUsageVariantHandlerClass)) { proxy, method, args ->
         when (method.name) {
             "handleTarget" -> {
                 val target: SearchTarget = args?.getOrNull(0) as? SearchTarget ?: return@newProxyInstance null
