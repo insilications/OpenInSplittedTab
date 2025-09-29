@@ -1,6 +1,5 @@
 package org.insilications.openinsplitted.find.actions
 
-import com.intellij.find.FindBundle
 import com.intellij.find.actions.ShowUsagesAction
 import com.intellij.find.actions.ShowUsagesActionHandler
 import com.intellij.find.usages.api.SearchTarget
@@ -141,24 +140,22 @@ class ShowUsagesActionSplitted {
 //                    }
 //                }
 
-        @ApiStatus.Internal
-        fun showUsages(
-            project: Project,
-            targetVariants: List<Any>,
-            popupPosition: RelativePoint,
-            editor: Editor,
-            searchScope: SearchScope
-        ) {
-            LOG.debug { "ShowUsagesActionSplitted - showUsages" }
-//            SlowOperations.startSection(SlowOperations.ACTION_PERFORM).use { ignored ->
-            findShowUsages(
-                project, editor, popupPosition, targetVariants, FindBundle.message("show.usages.ambiguous.title"),
-                createVariantHandler(project, editor, popupPosition, searchScope)
-            )
-//            }
-        }
+//        @ApiStatus.Internal
+//        fun showUsages(
+//            project: Project,
+//            targetVariants: List<Any>,
+//            popupPosition: RelativePoint,
+//            editor: Editor,
+//            searchScope: SearchScope
+//        ) {
+//            LOG.debug { "ShowUsagesActionSplitted - showUsages" }
+//            findShowUsages(
+//                project, editor, popupPosition, targetVariants, FindBundle.message("show.usages.ambiguous.title"),
+//                createVariantHandler(project, editor, popupPosition, searchScope)
+//            )
+//        }
 
-        private fun createVariantHandler(
+        fun createVariantHandler(
             project: Project,
             editor: Editor,
             popupPosition: RelativePoint,

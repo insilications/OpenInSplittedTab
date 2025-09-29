@@ -1,11 +1,10 @@
 // Copyright 2000-2025 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
 package org.insilications.openinsplitted.find.actions;
 
-import static com.intellij.find.actions.SearchOptionsService.SearchVariant.SHOW_USAGES;
-import static com.intellij.find.actions.ShowUsagesActionHandler.getSecondInvocationHint;
 import static com.intellij.find.findUsages.FindUsagesHandlerFactory.OperationMode.USAGES_WITH_DEFAULT_OPTIONS;
 import static com.intellij.util.FindUsagesScopeKt.FindUsagesScope;
 import static com.intellij.util.ObjectUtils.doIfNotNull;
+import static org.insilications.openinsplitted.find.actions.ShowUsagesActionHandler.getSecondInvocationHint;
 import static org.jetbrains.annotations.Nls.Capitalization.Sentence;
 
 import com.intellij.codeInsight.TargetElementUtil;
@@ -14,11 +13,6 @@ import com.intellij.codeInsight.hint.HintUtil;
 import com.intellij.find.FindBundle;
 import com.intellij.find.FindManager;
 import com.intellij.find.FindUsagesSettings;
-import com.intellij.find.actions.SearchOptionsServiceKt;
-import com.intellij.find.actions.ShowTargetUsagesActionHandler;
-import com.intellij.find.actions.ShowUsagesActionHandler;
-import com.intellij.find.actions.ShowUsagesPopupData;
-import com.intellij.find.actions.UsageNavigation;
 import com.intellij.find.findUsages.AbstractFindUsagesDialog;
 import com.intellij.find.findUsages.FindUsagesHandler;
 import com.intellij.find.findUsages.FindUsagesHandlerBase;
@@ -28,7 +22,6 @@ import com.intellij.find.findUsages.FindUsagesOptions;
 import com.intellij.find.findUsages.PersistentFindUsagesOptions;
 import com.intellij.find.impl.FindManagerImpl;
 import com.intellij.find.impl.UsageAdaptersKt;
-import com.intellij.find.usages.api.SearchTarget;
 import com.intellij.find.usages.impl.Psi2UsageInfo2UsageAdapter;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.DataManager;
@@ -73,7 +66,6 @@ import com.intellij.openapi.fileEditor.TextEditor;
 import com.intellij.openapi.fileEditor.impl.EditorHistoryManager;
 import com.intellij.openapi.fileEditor.impl.text.AsyncEditorLoader;
 import com.intellij.openapi.keymap.KeymapUtil;
-import com.intellij.openapi.options.advanced.AdvancedSettings;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.util.ProgressIndicatorBase;
 import com.intellij.openapi.project.DumbAwareAction;
@@ -168,7 +160,6 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.annotations.TestOnly;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import java.awt.BorderLayout;
@@ -219,6 +210,7 @@ import io.opentelemetry.context.Scope;
 
 //public final class ShowUsagesAction extends AnAction implements PopupAction, HintManagerImpl.ActionToIgnore {
 public class ShowUsagesAction {
+    private static final Logger LOG = Logger.getInstance("org.insilications.openinsplitted");
     public static final String ID = "ShowUsages";
 
     @ApiStatus.Internal
@@ -245,7 +237,7 @@ public class ShowUsagesAction {
 //        return ActionUpdateThread.BGT;
 //    }
 
-    private static final class UsageNodeComparator implements Comparator<UsageNode> {
+    private static class UsageNodeComparator implements Comparator<UsageNode> {
         private final ShowUsagesTable myTable;
 
         private UsageNodeComparator(@NotNull ShowUsagesTable table) {
@@ -271,9 +263,9 @@ public class ShowUsagesAction {
         }
     }
 
-    public static int getUsagesPageSize() {
-        return Math.max(1, AdvancedSettings.getInt("ide.usages.page.size"));
-    }
+//    public static int getUsagesPageSize() {
+//        return Math.max(1, AdvancedSettings.getInt("ide.usages.page.size"));
+//    }
 
 //  @Override
 //  public void update(@NotNull AnActionEvent e) {
@@ -413,14 +405,14 @@ public class ShowUsagesAction {
         return showElementUsagesWithResult(ShowUsagesParameters.initial(project, editor, popupPosition), actionHandler);
     }
 
-    @ApiStatus.Internal
-    public static @NotNull Future<Collection<Usage>> startFindUsagesWithResult(@NotNull Project project,
-                                                                               @NotNull SearchTarget target,
-                                                                               @NotNull RelativePoint popupPosition,
-                                                                               @Nullable Editor editor,
-                                                                               @NotNull SearchScope searchScope) {
-        return showElementUsagesWithResult(ShowUsagesParameters.initial(project, editor, popupPosition), createActionHandler(project, searchScope, target));
-    }
+//    @ApiStatus.Internal
+//    public static @NotNull Future<Collection<Usage>> startFindUsagesWithResult(@NotNull Project project,
+//                                                                               @NotNull SearchTarget target,
+//                                                                               @NotNull RelativePoint popupPosition,
+//                                                                               @Nullable Editor editor,
+//                                                                               @NotNull SearchScope searchScope) {
+//        return showElementUsagesWithResult(ShowUsagesParameters.initial(project, editor, popupPosition), createActionHandler(project, searchScope, target));
+//    }
 
     public static void startFindUsages(@NotNull PsiElement element, @NotNull RelativePoint popupPosition, @Nullable Editor editor) {
         ReadAction.nonBlocking(() -> getUsagesTitle(element))
@@ -601,9 +593,9 @@ public class ShowUsagesAction {
         };
     }
 
-    private static @NotNull ShowUsagesActionHandler createActionHandler(@NotNull Project project, @NotNull SearchScope searchScope, @NotNull SearchTarget target) {
-        return new ShowTargetUsagesActionHandler(project, target, SearchOptionsServiceKt.getSearchOptions(SHOW_USAGES, target, searchScope));
-    }
+//    private static @NotNull ShowUsagesActionHandler createActionHandler(@NotNull Project project, @NotNull SearchScope searchScope, @NotNull SearchTarget target) {
+//        return new ShowTargetUsagesActionHandler(project, target, SearchOptionsServiceKt.getSearchOptions(SHOW_USAGES, target, searchScope));
+//    }
 
     static void showElementUsages(@NotNull ShowUsagesParameters parameters, @NotNull ShowUsagesActionHandler actionHandler) {
         showElementUsagesWithResult(parameters, actionHandler);
@@ -780,7 +772,7 @@ public class ShowUsagesAction {
         PingEDT pingEDT = new PingEDT("Rebuild popup in EDT", () -> popup.isDisposed(), 100, runnable);
 
         MessageBusConnection messageBusConnection = project.getMessageBus().connect(usageView);
-        messageBusConnection.subscribe(UsageFilteringRuleProvider.RULES_CHANGED, () -> rulesChanged(usageView, pingEDT, popup));
+        messageBusConnection.subscribe(UsageFilteringRuleProvider.RULES_CHANGED, (Runnable) () -> rulesChanged(usageView, pingEDT, popup));
 
         AtomicLong firstUsageAddedTS = new AtomicLong();
         AtomicBoolean tooManyResults = new AtomicBoolean();
@@ -854,16 +846,18 @@ public class ShowUsagesAction {
                                     cancelAndShowHint(popup, true, hint, parameters, actionHandler);
                                 } else {
                                     String hint = UsageViewBundle.message("show.usages.only.usage", searchScope.getDisplayName());
-                                    UsageNavigation.getInstance(project).navigateAndHint(
+                                    LOG.debug("0 navigateAndHint: ");
+                                    UsageNavigationSplitted.getInstance(project).navigateAndHint(
                                             project, usage, () -> onReady.accept(usage, hint), parameters.editor);
                                 }
                             } else {
-                                assert usages.size() > 1 : usages;
+//                                assert usages.size() > 1 : usages;
                                 // usage view can filter usages down to one
                                 Usage visibleUsage = visibleUsages.iterator().next();
                                 if (areAllUsagesInOneLine(visibleUsage, usages)) {
                                     String hint = UsageViewBundle.message("all.usages.are.in.this.line", usages.size(), searchScope.getDisplayName());
-                                    UsageNavigation.getInstance(project).navigateAndHint(
+                                    LOG.debug("1 navigateAndHint: ");
+                                    UsageNavigationSplitted.getInstance(project).navigateAndHint(
                                             project, visibleUsage, () -> onReady.accept(visibleUsage, hint), parameters.editor);
                                 }
                             }
@@ -1837,8 +1831,8 @@ public class ShowUsagesAction {
         state.continuation = null;
     }
 
-    @TestOnly
-    public static void setPopupDelayTimeout(int timeout) {
-        ourPopupDelayTimeout = timeout;
-    }
+//    @TestOnly
+//    public static void setPopupDelayTimeout(int timeout) {
+//        ourPopupDelayTimeout = timeout;
+//    }
 }

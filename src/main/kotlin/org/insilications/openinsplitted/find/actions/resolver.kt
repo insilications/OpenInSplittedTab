@@ -16,7 +16,7 @@ import java.lang.invoke.MethodHandles
 import java.lang.invoke.MethodType
 import java.lang.reflect.Proxy
 
-private val LOG: Logger = Logger.getInstance("org.insilications.openinsplitted")
+val LOG: Logger = Logger.getInstance("org.insilications.openinsplitted")
 
 private const val PLATFORM_RESOLVER_CLASS = "com.intellij.find.actions.ResolverKt"
 private const val PLATFORM_USAGE_VARIANT_HANDLER = "com.intellij.find.actions.UsageVariantHandler"
@@ -25,12 +25,12 @@ private val platformUsageVariantHandlerClassCached: Class<*>? by lazy(LazyThread
     try {
         Class.forName(PLATFORM_USAGE_VARIANT_HANDLER)
     } catch (t: Throwable) {
-        LOG.warn("Failed to resolve UsageVariantHandler class.", t)
+        LOG.warn("Failed to resolve com.intellij.find.actions.UsageVariantHandler class.", t)
         null
     }
 }
 
-private val platformFindShowUsagesInvokerCached: MethodHandle? by lazy(LazyThreadSafetyMode.PUBLICATION) {
+val platformFindShowUsagesInvokerCached: MethodHandle? by lazy(LazyThreadSafetyMode.PUBLICATION) {
     val platformUsageVariantHandlerClass: Class<*> = platformUsageVariantHandlerClassCached ?: return@lazy null
     try {
         val resolverClass: Class<*> = Class.forName(PLATFORM_RESOLVER_CLASS)
@@ -48,7 +48,7 @@ private val platformFindShowUsagesInvokerCached: MethodHandle? by lazy(LazyThrea
             )
         )
     } catch (t: Throwable) {
-        LOG.warn("Failed to resolve ResolverKt.findShowUsages via reflection.", t)
+        LOG.warn("Failed to resolve com.intellij.find.actions.ResolverKt.findShowUsages via reflection.", t)
         null
     }
 }
@@ -59,7 +59,7 @@ interface UsageVariantHandler {
     fun handlePsi(element: PsiElement)
 }
 
-fun findShowUsages(
+inline fun findShowUsages(
     project: Project,
     editor: Editor?,
     popupPosition: RelativePoint,
@@ -68,21 +68,25 @@ fun findShowUsages(
     handler: UsageVariantHandler
 ) {
     val platformFindShowUsagesInvoker: MethodHandle? = platformFindShowUsagesInvokerCached
-    val platformUsageVariantHandlerProxy = createPlatformUsageVariantHandlerProxy(handler)
+    if (platformFindShowUsagesInvoker == null) {
+        LOG.warn("Falling back – platformFindShowUsagesInvoker == null.")
+        return
+    }
 
-    if (platformFindShowUsagesInvoker == null || platformUsageVariantHandlerProxy == null) {
-        LOG.warn("Falling back – platform findShowUsages unavailable.")
+    val platformUsageVariantHandlerProxy = createPlatformUsageVariantHandlerProxy(handler)
+    if (platformUsageVariantHandlerProxy == null) {
+        LOG.warn("Falling back – platformUsageVariantHandlerProxy == null.")
         return
     }
 
     try {
         platformFindShowUsagesInvoker.invokeWithArguments(project, editor, popupPosition, allTargets, popupTitle, platformUsageVariantHandlerProxy)
     } catch (t: Throwable) {
-        LOG.warn("Failed to delegate to platform findShowUsages.", t)
+        LOG.warn("Failed to delegate to platform com.intellij.find.actions.ResolverKt.findShowUsages.", t)
     }
 }
 
-private fun createPlatformUsageVariantHandlerProxy(handler: UsageVariantHandler): Any? {
+fun createPlatformUsageVariantHandlerProxy(handler: UsageVariantHandler): Any? {
     val platformUsageVariantHandlerClass: Class<*> = platformUsageVariantHandlerClassCached ?: return null
     return Proxy.newProxyInstance(platformUsageVariantHandlerClass.classLoader, arrayOf(platformUsageVariantHandlerClass)) { proxy, method, args ->
         when (method.name) {

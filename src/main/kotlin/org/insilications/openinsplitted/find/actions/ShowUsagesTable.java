@@ -3,9 +3,6 @@ package org.insilications.openinsplitted.find.actions;
 
 import static com.intellij.platform.ide.navigation.NavigationServiceKt.navigateBlocking;
 
-import com.intellij.find.actions.ShowUsagesAction;
-import com.intellij.find.actions.ShowUsagesActionHandler;
-import com.intellij.find.actions.UsageNavigation;
 import com.intellij.ide.DataManager;
 import com.intellij.ide.util.gotoByName.ModelDiff;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -14,6 +11,7 @@ import com.intellij.openapi.actionSystem.DataSink;
 import com.intellij.openapi.actionSystem.LangDataKeys;
 import com.intellij.openapi.actionSystem.UiDataProvider;
 import com.intellij.openapi.application.ReadAction;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.util.PopupUtil;
 import com.intellij.platform.ide.navigation.NavigationOptions;
@@ -67,6 +65,7 @@ import javax.swing.table.TableColumn;
 
 @ApiStatus.Internal
 public final class ShowUsagesTable extends JBTable implements UiDataProvider {
+    private static final Logger LOG = Logger.getInstance("org.insilications.openinsplitted");
     final Usage MORE_USAGES_SEPARATOR = new UsageAdapter();
     final Usage USAGES_OUTSIDE_SCOPE_SEPARATOR = new UsageAdapter();
     final Usage USAGES_FILTERED_OUT_SEPARATOR = new UsageAdapter();
@@ -214,7 +213,8 @@ public final class ShowUsagesTable extends JBTable implements UiDataProvider {
                                     numberOfLettersTyped,
                                     selectedElement.getLanguage(), false);
                         }
-                        UsageNavigation.getInstance(parameters.project).navigate(usageInfo, true, dataContext);
+                        LOG.debug("prepareTable - UsageNavigationSplitted.getInstance(parameters.project).navigate");
+                        UsageNavigationSplitted.getInstance(parameters.project).navigate(usageInfo, true, dataContext);
                     } else if (usage instanceof Navigatable navigatable) {
                         navigateBlocking(parameters.project, navigatable, NavigationOptions.requestFocus(), dataContext);
                     }

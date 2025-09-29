@@ -7,6 +7,7 @@ import com.intellij.codeInsight.navigation.impl.LazyTargetWithPresentation
 import com.intellij.codeInsight.navigation.impl.NavigationActionResult
 import com.intellij.codeInsight.navigation.impl.NavigationActionResult.MultipleTargets
 import com.intellij.codeInsight.navigation.impl.NavigationActionResult.SingleTarget
+import com.intellij.find.FindBundle
 import com.intellij.find.FindUsagesSettings
 import com.intellij.find.findUsages.FindUsagesOptions
 import com.intellij.openapi.actionSystem.CommonDataKeys
@@ -24,9 +25,12 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.psi.PsiFile
+import com.intellij.psi.search.SearchScope
+import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.list.createTargetPopup
 import org.insilications.openinsplitted.debug
-import org.insilications.openinsplitted.find.actions.ShowUsagesActionSplitted
+import org.insilications.openinsplitted.find.actions.ShowUsagesActionSplitted.Companion.createVariantHandler
+import org.insilications.openinsplitted.find.actions.findShowUsages
 import org.jetbrains.annotations.ApiStatus.Internal
 import java.lang.invoke.MethodHandle
 import java.lang.invoke.MethodHandles
@@ -109,7 +113,10 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
                             handle.invokeWithArguments(project, editor, file, offset)
                         }
                     } catch (t: Throwable) {
-                        LOG.warn("Failed to resolve gotoDeclarationOrUsages via reflection", t)
+                        LOG.warn(
+                            "Failed to resolve com.intellij.codeInsight.navigation.actions.GotoDeclarationOrUsageHandler2.Companion.gotoDeclarationOrUsages via reflection",
+                            t
+                        )
                         // On failure, the lazy property will be initialized to null.
                         null
                     }
@@ -263,9 +270,9 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
         project: Project,
         editor: Editor,
         file: PsiFile,
-        searchTargets: List<Any>
+        targetVariants: List<Any>
     ) {
-        require(searchTargets.isNotEmpty())
+        require(targetVariants.isNotEmpty())
         // Build DataContext for scope resolution (public API)
         val dataContext: DataContext = SimpleDataContext.builder()
             .add(CommonDataKeys.PSI_FILE, file)
@@ -273,22 +280,29 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
             .add(PlatformCoreDataKeys.CONTEXT_COMPONENT, editor.contentComponent)
             .build()
 
-        // We use this to preemptively set the current window to the next splitted tab or a new splitted tab.
-        // This forces `showUsages` to reuse that tab. This workaround might be fragile, but it works perfectly.
-        receiveNextWindowPane(project, null)
-
         try {
-            ShowUsagesActionSplitted.showUsages(
+            val popupPosition: RelativePoint = JBPopupFactory.getInstance().guessBestPopupLocation(editor)
+            val searchScope: SearchScope = FindUsagesOptions.findScopeByName(
                 project,
-                searchTargets,
-                JBPopupFactory.getInstance().guessBestPopupLocation(editor),
-                editor,
-                FindUsagesOptions.findScopeByName(
-                    project,
-                    dataContext,
-                    FindUsagesSettings.getInstance().defaultScopeName
-                )
+                dataContext,
+                FindUsagesSettings.getInstance().defaultScopeName
             )
+            findShowUsages(
+                project, editor, popupPosition, targetVariants, FindBundle.message("show.usages.ambiguous.title"),
+                createVariantHandler(project, editor, popupPosition, searchScope)
+            )
+
+//            ShowUsagesActionSplitted.showUsages(
+//                project,
+//                targetVariants,
+//                JBPopupFactory.getInstance().guessBestPopupLocation(editor),
+//                editor,
+//                FindUsagesOptions.findScopeByName(
+//                    project,
+//                    dataContext,
+//                    FindUsagesSettings.getInstance().defaultScopeName
+//                )
+//            )
         } catch (_: IndexNotReadyException) {
             DumbService.getInstance(project).showDumbModeNotificationForFunctionality(
                 CodeInsightBundle.message("message.navigation.is.not.available.here.during.index.update"),
