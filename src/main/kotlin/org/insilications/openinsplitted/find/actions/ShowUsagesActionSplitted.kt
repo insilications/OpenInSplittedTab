@@ -3,47 +3,60 @@ package org.insilications.openinsplitted.find.actions
 import com.intellij.find.FindBundle
 import com.intellij.find.actions.ShowUsagesAction
 import com.intellij.find.actions.ShowUsagesActionHandler
-import com.intellij.find.actions.ShowUsagesParameters
 import com.intellij.find.usages.api.SearchTarget
-import com.intellij.navigation.ItemPresentation
-import com.intellij.navigation.NavigationItem
-import com.intellij.openapi.application.ModalityState
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.text.HtmlBuilder
-import com.intellij.openapi.util.text.HtmlChunk
-import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.SearchScope
-import com.intellij.ui.ColorUtil
-import com.intellij.ui.ExperimentalUI
-import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.awt.RelativePoint
-import com.intellij.usageView.UsageViewUtil
-import com.intellij.util.concurrency.AppExecutorUtil
-import com.intellij.util.ui.JBUI
 import org.insilications.openinsplitted.debug
+import org.insilications.openinsplitted.find.actions.ShowUsagesAction.startFindUsages
 import org.jetbrains.annotations.ApiStatus
-import org.jetbrains.annotations.Nls
-import java.awt.Color
 import java.lang.invoke.MethodHandle
 import java.lang.invoke.MethodHandles
 import java.lang.invoke.MethodType
-import java.util.concurrent.Callable
-
+import java.lang.reflect.Method
 
 class ShowUsagesActionSplitted {
     companion object {
         private val LOG: Logger = Logger.getInstance("org.insilications.openinsplitted")
+//        private const val PLATFORM_SHOW_USAGES_TABLE_CELL_RENDERER = "com.intellij.find.actions.ShowUsagesTableCellRenderer"
 
-        private val createActionHandlerCachedInvoker: ((Project, SearchScope, SearchTarget) -> ShowUsagesActionHandler)?
+
+//        private val showUsagesTableCellRendererCachedConstructor: ((Predicate<in Usage>, AtomicInteger, SearchScope) -> TableCellRenderer)? by lazy(
+//            LazyThreadSafetyMode.PUBLICATION
+//        ) {
+//            try {
+//                val klass: Class<*> = Class.forName(PLATFORM_SHOW_USAGES_TABLE_CELL_RENDERER)
+//                val constructorMethod = klass.getConstructor(Predicate::class.java, AtomicInteger::class.java, SearchScope::class.java).apply {
+//                    isAccessible = true
+//                }
+//
+//                val constructorHandle: MethodHandle = MethodHandles.lookup().unreflectConstructor(constructorMethod).asType(
+//                    MethodType.methodType(
+//                        klass,
+//                        Predicate::class.java,
+//                        AtomicInteger::class.java,
+//                        SearchScope::class.java
+//                    )
+//                );
+//
+//                { originUsageCheck: Predicate<in Usage>, outOfScopeUsages: AtomicInteger, searchScope: SearchScope ->
+//                    constructorHandle.invokeWithArguments(originUsageCheck, outOfScopeUsages, searchScope) as TableCellRenderer
+//                }
+//            } catch (t: Throwable) {
+//                LOG.warn("Failed to resolve ShowUsagesTableCellRenderer(Predicate<? super Usage>, AtomicInteger, SearchScope)  class.", t)
+//                null
+//            }
+//        }
+
+        private val createShowTargetUsagesActionHandlerCachedInvoker: ((Project, SearchScope, SearchTarget) -> ShowUsagesActionHandler)?
                 by lazy(LazyThreadSafetyMode.PUBLICATION) {
                     try {
                         // 1. Get the private method from the ShowUsagesAction class.
                         // We use `getDeclaredMethod` because the method is not public.
-                        val method = ShowUsagesAction::class.java.getDeclaredMethod(
+                        val method: Method = ShowUsagesAction::class.java.getDeclaredMethod(
                             "createActionHandler",
                             Project::class.java,
                             SearchScope::class.java,
@@ -70,7 +83,7 @@ class ShowUsagesActionSplitted {
 
                         // 3. Return a strongly-typed lambda that wraps the handle.
                         // The result is cast to the known return type for type safety.
-                        { project, searchScope, target ->
+                        { project: Project, searchScope: SearchScope, target: SearchTarget ->
                             // Call the handle. Because `invokeWithArguments` is statically typed to
                             // return `Object`, we still need a cast to satisfy the Kotlin compiler.
                             // This cast is safe because of the `.asType(...)` guarantee above.
@@ -82,6 +95,51 @@ class ShowUsagesActionSplitted {
                         null
                     }
                 }
+
+//        private val createActionHandlerCachedInvoker: ((FindUsagesHandlerBase, FindUsagesOptions, String) -> ShowUsagesActionHandler)?
+//                by lazy(LazyThreadSafetyMode.PUBLICATION) {
+//                    try {
+//                        // 1. Get the private method from the ShowUsagesAction class.
+//                        // We use `getDeclaredMethod` because the method is not public.
+//                        val method = ShowUsagesAction::class.java.getDeclaredMethod(
+//                            "createActionHandler",
+//                            FindUsagesHandlerBase::class.java,
+//                            FindUsagesOptions::class.java,
+//                            String::class.java
+//                        ).apply {
+//                            // 2. Make it accessible. This is crucial for private members.
+//                            isAccessible = true
+//                        }
+//
+//                        // 2. Create a `MethodHandle` with a specific type using `.asType(...)`.
+//                        // This provides a runtime guarantee and acts as an assertion during initialization.
+//                        // Additionally, the method is static, we do not need to bind it to an instance.
+//                        // By creating an adapted handle with a specific type, you provide more information
+//                        // to the JVM's JIT compiler, which can lead to better performance optimizations
+//                        // compared to a completely generic handle.
+//                        val handle: MethodHandle = MethodHandles.lookup().unreflect(method).asType(
+//                            MethodType.methodType(
+//                                ShowUsagesActionHandler::class.java,
+//                                FindUsagesHandlerBase::class.java,
+//                                FindUsagesOptions::class.java,
+//                                String::class.java
+//                            )
+//                        );
+//
+//                        // 3. Return a strongly-typed lambda that wraps the handle.
+//                        // The result is cast to the known return type for type safety.
+//                        { handler, options, title ->
+//                            // Call the handle. Because `invokeWithArguments` is statically typed to
+//                            // return `Object`, we still need a cast to satisfy the Kotlin compiler.
+//                            // This cast is safe because of the `.asType(...)` guarantee above.
+//                            handle.invokeWithArguments(handler, options, title) as ShowUsagesActionHandler
+//                        }
+//                    } catch (t: Throwable) {
+//                        LOG.warn("Failed to resolve ShowUsagesAction.createActionHandler(FindUsagesHandlerBase, FindUsagesOptions, String) via reflection.", t)
+//                        // If reflection fails for any reason, the invoker will be null.
+//                        null
+//                    }
+//                }
 
         @ApiStatus.Internal
         fun showUsages(
@@ -120,32 +178,12 @@ class ShowUsagesActionSplitted {
             }
         }
 
-        fun startFindUsages(element: PsiElement, popupPosition: RelativePoint, editor: Editor?) {
-            LOG.debug { "ShowUsagesActionSplitted - startFindUsages" }
-            // TODO: Implement my custom `startFindUsages` functionality here.
-            ReadAction.nonBlocking(Callable { getUsagesTitle(element) }
-            ).expireWhen { editor != null && editor.isDisposed }
-                .finishOnUiThread(ModalityState.nonModal()) { title ->
-                    startFindUsagesWithResult(element, popupPosition, editor, null, title)
-                }
-                .submit(AppExecutorUtil.getAppExecutorService())
-        }
-
-        @ApiStatus.Internal
-        fun startFindUsagesWithResult(
-            element: PsiElement,
-            popupPosition: RelativePoint,
-            editor: Editor?,
-            scope: SearchScope?,
-            @Nls title: String
-        ) {
-        }
-
         @ApiStatus.Experimental
         fun showElementUsages(project: Project, searchScope: SearchScope, target: SearchTarget, parameters: ShowUsagesParameters) {
-            val createActionHandlerInvoker: (Project, SearchScope, SearchTarget) -> ShowUsagesActionHandler = createActionHandlerCachedInvoker ?: return
+            val createShowTargetUsagesActionHandlerInvoker: (Project, SearchScope, SearchTarget) -> ShowUsagesActionHandler =
+                createShowTargetUsagesActionHandlerCachedInvoker ?: return
             val showTargetUsagesActionHandler: ShowUsagesActionHandler = try {
-                createActionHandlerInvoker(project, searchScope, target)
+                createShowTargetUsagesActionHandlerInvoker(project, searchScope, target)
             } catch (t: Throwable) {
                 LOG.warn("Failed to invoke gotoDeclarationOrUsages", t)
                 return
@@ -153,36 +191,6 @@ class ShowUsagesActionSplitted {
             LOG.debug { "ShowUsagesActionSplitted - showElementUsages" }
             // TODO: Implement my custom `showElementUsagesWithResult` functionality here.
             // showElementUsagesWithResult(parameters, actionHandler)
-        }
-
-
-        private fun getLocationString(@Nls locationString: String): HtmlChunk {
-            val color: Color = if (ExperimentalUI.isNewUI()) JBUI.CurrentTheme.ContextHelp.FOREGROUND else SimpleTextAttributes.GRAY_ATTRIBUTES.fgColor
-            return HtmlChunk.text(locationString).wrapWith("font").attr("color", "#" + ColorUtil.toHex(color))
-        }
-
-        @Nls
-        private fun getUsagesTitle(element: PsiElement): String {
-            val builder = HtmlBuilder()
-
-            var type = HtmlChunk.text(StringUtil.capitalize(UsageViewUtil.getType(element)))
-            if (ExperimentalUI.isNewUI()) {
-                type = type.bold()
-            }
-
-            builder.append(type).nbsp().append(HtmlChunk.text(UsageViewUtil.getLongName(element)).bold())
-
-            if (element is NavigationItem) {
-                val itemPresentation: ItemPresentation? = (element as NavigationItem).presentation
-                if (itemPresentation != null) {
-                    val locationString: String? = itemPresentation.locationString
-                    if (locationString != null && StringUtil.isNotEmpty(locationString)) {
-                        builder.nbsp().append(getLocationString(locationString))
-                    }
-                }
-            }
-
-            return builder.toString()
         }
     }
 }
