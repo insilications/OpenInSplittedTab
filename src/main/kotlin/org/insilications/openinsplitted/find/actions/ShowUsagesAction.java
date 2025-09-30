@@ -2,7 +2,6 @@
 package org.insilications.openinsplitted.find.actions;
 
 import static com.intellij.find.findUsages.FindUsagesHandlerFactory.OperationMode.USAGES_WITH_DEFAULT_OPTIONS;
-import static com.intellij.util.FindUsagesScopeKt.FindUsagesScope;
 import static com.intellij.util.ObjectUtils.doIfNotNull;
 import static org.insilications.openinsplitted.find.actions.ShowUsagesActionHandler.getSecondInvocationHint;
 import static org.jetbrains.annotations.Nls.Capitalization.Sentence;
@@ -28,8 +27,6 @@ import com.intellij.ide.DataManager;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.ide.util.gotoByName.ModelDiff;
 import com.intellij.ide.util.scopeChooser.ScopeChooserGroup;
-import com.intellij.internal.statistic.eventLog.events.EventPair;
-import com.intellij.internal.statistic.eventLog.events.ObjectEventData;
 import com.intellij.internal.statistic.service.fus.collectors.UIEventLogger;
 import com.intellij.lang.Language;
 import com.intellij.lang.injection.InjectedLanguageManager;
@@ -63,7 +60,6 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorLocation;
 import com.intellij.openapi.fileEditor.TextEditor;
-import com.intellij.openapi.fileEditor.impl.EditorHistoryManager;
 import com.intellij.openapi.fileEditor.impl.text.AsyncEditorLoader;
 import com.intellij.openapi.keymap.KeymapUtil;
 import com.intellij.openapi.progress.ProgressIndicator;
@@ -76,8 +72,6 @@ import com.intellij.openapi.ui.OnePixelDivider;
 import com.intellij.openapi.ui.Splitter;
 import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
-import com.intellij.openapi.ui.popup.JBPopupListener;
-import com.intellij.openapi.ui.popup.LightweightWindowEvent;
 import com.intellij.openapi.ui.popup.PopupChooserBuilder;
 import com.intellij.openapi.ui.popup.util.PopupUtil;
 import com.intellij.openapi.util.Comparing;
@@ -93,11 +87,7 @@ import com.intellij.openapi.util.text.HtmlChunk;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.IdeFocusManager;
-import com.intellij.platform.diagnostic.telemetry.IJTracer;
-import com.intellij.platform.diagnostic.telemetry.TelemetryManager;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiReference;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.LocalSearchScope;
@@ -129,14 +119,12 @@ import com.intellij.usages.UsageInfoAdapter;
 import com.intellij.usages.UsageSearchPresentation;
 import com.intellij.usages.UsageSearcher;
 import com.intellij.usages.UsageView;
-import com.intellij.usages.impl.CodeNavigateSource;
 import com.intellij.usages.impl.GroupNode;
 import com.intellij.usages.impl.NullUsage;
 import com.intellij.usages.impl.UsageNode;
 import com.intellij.usages.impl.UsagePreviewPanel;
 import com.intellij.usages.impl.UsageViewImpl;
 import com.intellij.usages.impl.UsageViewManagerImpl;
-import com.intellij.usages.impl.UsageViewStatisticsCollector;
 import com.intellij.usages.rules.UsageFilteringRuleProvider;
 import com.intellij.util.Alarm;
 import com.intellij.util.ObjectUtils;
@@ -146,7 +134,6 @@ import com.intellij.util.SlowOperations;
 import com.intellij.util.SmartList;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.util.concurrency.EdtScheduler;
-import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.messages.MessageBusConnection;
 import com.intellij.util.ui.GridBag;
 import com.intellij.util.ui.JBDimension;
@@ -218,8 +205,6 @@ public final class ShowUsagesAction {
     private static final String DIMENSION_SERVICE_KEY = "ShowUsagesActions.dimensionServiceKey";
     private static final String SPLITTER_SERVICE_KEY = "ShowUsagesActions.splitterServiceKey";
     private static final String PREVIEW_PROPERTY_KEY = "ShowUsagesActions.previewPropertyKey";
-
-    private static final IJTracer myFindUsagesTracer = TelemetryManager.getInstance().getTracer(FindUsagesScope);
 
     private static final int ourPopupDelayTimeout = 300;
 
@@ -424,39 +409,6 @@ public final class ShowUsagesAction {
             }
 
             @Override
-            public @NotNull List<EventPair<?>> getEventData() {
-                List<EventPair<?>> eventData = new ArrayList<>();
-                PsiElement target = handler.getPsiElement();
-                final ObjectEventData targetElementData = UsageViewStatisticsCollector.calculateElementData(target);
-                if (targetElementData != null) {
-                    eventData.add(UsageViewStatisticsCollector.TARGET_ELEMENT_DATA.with(targetElementData));
-                }
-                eventData.add(UsageViewStatisticsCollector.NUMBER_OF_TARGETS.with(primaryElements.length + secondaryElements.length));
-                return eventData;
-            }
-
-            @Override
-            public @NotNull List<EventPair<?>> buildFinishEventData(@Nullable UsageInfo selectedUsage) {
-                List<EventPair<?>> eventData = getEventData();
-                PsiElement target = handler.getPsiElement();
-                PsiElement selectedUsagesElement = selectedUsage != null ? selectedUsage.getElement() : null;
-                if (selectedUsagesElement != null) {
-                    PsiFile containingFile = selectedUsagesElement.getContainingFile();
-                    PsiManager manager = selectedUsagesElement.getManager();
-                    eventData.add(UsageViewStatisticsCollector.IS_THE_SAME_FILE.with(
-                            manager != null && manager.areElementsEquivalent(target.getContainingFile(), containingFile)));
-                    ObjectEventData usageElementData = UsageViewStatisticsCollector.calculateElementData(selectedUsagesElement);
-                    if (usageElementData != null) {
-                        eventData.add(UsageViewStatisticsCollector.SELECTED_ELEMENT_DATA.with(usageElementData));
-                    }
-                    eventData.add(UsageViewStatisticsCollector.IS_SELECTED_ELEMENT_AMONG_RECENT_FILES.with(
-                            ContainerUtil.exists(ContainerUtil.reverse(EditorHistoryManager.getInstance(target.getProject()).getFileList()),
-                                    e -> e.equals(containingFile.getVirtualFile()))));
-                }
-                return eventData;
-            }
-
-            @Override
             public boolean navigateToSingleUsageImmediately() {
                 return true;
             }
@@ -491,15 +443,7 @@ public final class ShowUsagesAction {
     public static Future<Collection<Usage>> showElementUsagesWithResult(@NotNull ShowUsagesParameters parameters,
                                                                         @NotNull ShowUsagesActionHandler actionHandler,
                                                                         @NotNull UsageViewImpl usageView) {
-
-//        Span findUsageSpan = myFindUsagesTracer.spanBuilder("findUsages").startSpan();
-//        Scope opentelemetryScope = findUsageSpan.makeCurrent();
-//        Span popupSpan = myFindUsagesTracer.spanBuilder("findUsage_popup").startSpan();
-//        Span firstUsageSpan = myFindUsagesTracer.spanBuilder("findUsages_firstUsage").startSpan();
-
         Project project = parameters.project;
-        ReadAction.nonBlocking(() -> actionHandler.getEventData()).submit(AppExecutorUtil.getAppExecutorService()).onSuccess(
-                (eventData) -> UsageViewStatisticsCollector.logSearchStarted(project, usageView, CodeNavigateSource.ShowUsagesPopup, eventData));
         final SearchScope searchScope = actionHandler.getSelectedScope();
         final AtomicInteger outOfScopeUsages = new AtomicInteger();
         AtomicBoolean manuallyResized = new AtomicBoolean();
@@ -537,29 +481,6 @@ public final class ShowUsagesAction {
         AbstractPopup popup = createUsagePopup(usageView, showUsagesPopupData, itemChosenCallback, tableResizer);
         popup.addResizeListener(() -> manuallyResized.set(true), popup);
         Ref<Long> popupShownTimeRef = new Ref<>();
-        popup.addListener(new JBPopupListener() {
-            @Override
-            public void onClosed(@NotNull LightweightWindowEvent event) {
-                @Nullable UsageNode node = getSelectedUsageNode(table);
-                Usage usage = node != null ? node.getUsage() : null;
-                UsageInfo2UsageAdapter usageAdapter = ObjectUtils.tryCast(usage, UsageInfo2UsageAdapter.class);
-                UsageInfo usageInfo = usageAdapter != null ? usageAdapter.getUsageInfo() : null;
-                int preselectedRowNumber = getRowNumber(preselectedRow.get(), table);
-                int selectedRowNumber = getRowNumber(node, table);
-                Long popupShownTime = popupShownTimeRef.get();
-                Long durationTime = popupShownTime != null ? System.currentTimeMillis() - popupShownTime : null;
-                ReadAction.nonBlocking(() ->
-                        actionHandler.buildFinishEventData(usageInfo)
-                ).submit(AppExecutorUtil.getAppExecutorService()).onSuccess((finishEventData) -> {
-                    UsageViewStatisticsCollector.logPopupClosed(project, usageView, event.isOk(),
-                            preselectedRowNumber,
-                            selectedRowNumber, visibleUsages.size(),
-                            durationTime,
-                            finishEventData
-                    );
-                });
-            }
-        });
         ProgressIndicator indicator = new ProgressIndicatorBase();
         if (!popup.isDisposed()) {
             Disposer.register(popup, usageView);
@@ -569,7 +490,6 @@ public final class ShowUsagesAction {
             EdtScheduler.getInstance().schedule(ourPopupDelayTimeout, () -> {
                 if (!usageView.isDisposed()) {
                     showPopupIfNeedTo(popup, parameters.popupPosition, popupShownTimeRef);
-//                    popupSpan.end();
                 }
             });
         }
@@ -651,7 +571,6 @@ public final class ShowUsagesAction {
                 return true;
             }
             synchronized (usages) {
-//                firstUsageSpan.end();
                 if (visibleUsages.size() >= parameters.maxUsages) {
                     tooManyResults.set(true);
                     return false;
@@ -686,7 +605,6 @@ public final class ShowUsagesAction {
                     showUsagesPopupData.header.disposeProcessIcon();
                     pingEDT.ping(); // repaint status
                     synchronized (usages) {
-//                        findUsageSpan.setAttribute("number", usages.size());
                         if (visibleUsages.isEmpty()) {
                             if (usages.isEmpty()) {
                                 String hint = UsageViewBundle.message("no.usages.found.in", searchScope.getDisplayName());
@@ -704,7 +622,7 @@ public final class ShowUsagesAction {
                             };
 
                             if (usages.size() == 1) {
-                                //the only usage
+                                // The only usage
                                 Usage usage = visibleUsages.iterator().next();
                                 if (usage == table.USAGES_OUTSIDE_SCOPE_SEPARATOR) {
                                     String hint = UsageViewManagerImpl.outOfScopeMessage(outOfScopeUsages.get(), searchScope);
@@ -716,7 +634,7 @@ public final class ShowUsagesAction {
                                             project, usage, () -> onReady.accept(usage, hint), parameters.editor);
                                 }
                             } else {
-//                                assert usages.size() > 1 : usages;
+                                //  assert usages.size() > 1 : usages;
                                 // usage view can filter usages down to one
                                 Usage visibleUsage = visibleUsages.iterator().next();
                                 if (areAllUsagesInOneLine(visibleUsage, usages)) {
@@ -729,7 +647,6 @@ public final class ShowUsagesAction {
                         }
                         result.complete(usages);
                     }
-//                    findUsageSpan.end();
                     long current = System.nanoTime();
                     long firstUsageTimestamp = firstUsageAddedTS.get();
                     long durationFirstResults;
@@ -738,18 +655,9 @@ public final class ShowUsagesAction {
                     } else { // firstUsageTimestamp == 0 means that no usage was found.
                         durationFirstResults = -1;
                     }
-                    UsageViewStatisticsCollector.logSearchFinished(project, usageView,
-                            actionHandler.getTargetClass(), searchScope, actionHandler.getTargetLanguage(),
-                            visibleUsages.size(),
-                            durationFirstResults,
-                            TimeUnit.NANOSECONDS.toMillis(current - searchStarted),
-                            tooManyResults.get(),
-                            indicator.isCanceled(),
-                            CodeNavigateSource.ShowUsagesPopup);
                 },
                 project.getDisposed()
         ));
-//        opentelemetryScope.close();
         actionHandler.afterOpen(popup);
         return result;
     }
@@ -1225,8 +1133,6 @@ public final class ShowUsagesAction {
         ShowUsagesActionHandler actionHandler = showUsagesPopupData.actionHandler;
         ScopeChooserGroup result = new ScopeChooserGroup(project, parentDisposable, actionHandler.getSelectedScope());
         result.addChangeListener(scope -> {
-            UsageViewStatisticsCollector.logScopeChanged(project, usageView, actionHandler.getSelectedScope(), scope,
-                    actionHandler.getTargetClass());
             if (scope == null) {
                 return;
             }

@@ -94,7 +94,6 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
             receiveNextWindowPane(project, prepared.file)
         }
 
-//        readActionBlocking { UsageViewStatisticsCollector.logUsageNavigate(project, info) }
         NavigationService.getInstance(project).navigate(
             prepared.request,
             NavigationOptions.defaultOptions().requestFocus(requestFocus),

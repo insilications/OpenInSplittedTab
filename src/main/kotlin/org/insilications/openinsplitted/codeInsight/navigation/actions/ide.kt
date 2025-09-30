@@ -12,12 +12,16 @@ import com.intellij.codeInsight.lookup.LookupManager
 import com.intellij.codeInsight.navigation.impl.NavigationRequestor
 import com.intellij.ide.DataManager
 import com.intellij.ide.IdeEventQueue
+import com.intellij.ide.util.EditSourceUtil
 import com.intellij.idea.ActionsBundle
 import com.intellij.lang.LanguageNamesValidation
 import com.intellij.openapi.actionSystem.DataContext
-import com.intellij.openapi.actionSystem.ex.ActionUtil.underModalProgress
+import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.readAction
+import com.intellij.openapi.components.serviceAsync
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.openapi.fileEditor.ex.IdeDocumentHistory
 import com.intellij.openapi.fileEditor.impl.EditorWindow
@@ -27,13 +31,18 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.impl.RawNavigationRequest
 import com.intellij.platform.backend.navigation.impl.SourceNavigationRequest
-import com.intellij.platform.ide.navigation.NavigationOptions
-import com.intellij.platform.ide.navigation.navigateBlocking
+import com.intellij.platform.ide.navigation.NavigationService
+import com.intellij.platform.ide.progress.runWithModalProgressBlocking
+import com.intellij.pom.Navigatable
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.util.PsiUtilCore
 import com.intellij.util.concurrency.annotations.RequiresEdt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.insilications.openinsplitted.codeInsight.navigation.impl.gtdTargetNavigatable
 import org.insilications.openinsplitted.debug
+import org.insilications.openinsplitted.navigationOptionsRequestFocus
 import org.jetbrains.annotations.ApiStatus.Internal
 import java.awt.AWTEvent
 import java.awt.event.MouseEvent
@@ -86,53 +95,63 @@ internal inline fun navigateToLookupItem(project: Project, editor: Editor): Bool
     return true
 }
 
-/**
- * Obtains a [NavigationRequest] instance from [requestor] on a background thread, and calls [navigateRequest].
- */
 @Internal
 @RequiresEdt
 internal inline fun navigateRequestLazy(project: Project, requestor: NavigationRequestor, editor: Editor) {
 //    EDT.assertIsEdt()
     @Suppress("DialogTitleCapitalization")
-//    Obsolescence notice
-//            See ProgressIndicator notice.
-//    Consider getting rid of a modal progress altogether, for example, by using a background progress,
-//    or use com.intellij.platform.ide.progress.TasksKt.runWithModalProgressBlocking
-//    or com.intellij.platform.ide.progress.TasksKt.withModalProgress
-    val request: NavigationRequest? = underModalProgress(project, ActionsBundle.actionText("GotoDeclarationOnly")) {
-        requestor.navigationRequest()
-    }
-    if (request != null) {
-        val dataContext: DataContext = editor.component.let { DataManager.getInstance().getDataContext(it) }
-        navigateRequest(project, request, dataContext = dataContext)
-    }
-}
-
-@Internal
-@RequiresEdt
-fun navigateRequest(project: Project, request: NavigationRequest, dataContext: DataContext? = null) {
-    IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
-
-    when (request) {
-        is SourceNavigationRequest -> {
-            // We use this to preemptively set the current window to the next splitted tab or a new splitted tab.
-            // This forces the calls to the `navigate` method to reuse that tab.
-            // This workaround might be fragile, but it works perfectly.
-            // We already have the target file, so we pass it to open it in the case that a new split must be created.
-            receiveNextWindowPane(project, request.file)
+    val dataContext: DataContext = editor.component.let { DataManager.getInstance().getDataContext(it) }
+    runWithModalProgressBlocking(project, ActionsBundle.actionText("GotoDeclarationOnly")) {
+        val request: NavigationRequest? = readAction {
+            requestor.navigationRequest()
         }
 
-        // TODO: make RawNavigationRequest navigate to the next splitted tab or a new splitted tab too
-        // TODO: We need to get the target `VirtualFile` file from `RawNavigationRequest.navigatable` to pass to `receiveNextWindowPane`
-        is RawNavigationRequest -> {
-            LOG.debug { "navigateRequest - RawNavigationRequest - navigatable is ${request.navigatable::class.simpleName}" }
-        }
+        if (request != null) {
+            IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
+            withContext(Dispatchers.EDT) {
+                when (request) {
+                    is SourceNavigationRequest -> {
+                        LOG.debug { "navigateRequestLazy - SourceNavigationRequest" }
+                        // We use this to preemptively set the current window to the next splitted tab or a new splitted tab.
+                        // This forces the calls to the `navigate` method to reuse that tab.
+                        // This workaround might be fragile, but it works perfectly.
+                        // We already have the target file, so we pass it to open it in the case that a new split must be created.
+                        receiveNextWindowPane(project, request.file)
+                    }
 
-        else -> {
-            LOG.error("navigateRequest - unsupported request ${request.javaClass.name}")
+                    // TODO: make RawNavigationRequest navigate to the next splitted tab or a new splitted tab too
+                    // TODO: We need to get the target `VirtualFile` file from `RawNavigationRequest.navigatable` to pass to `receiveNextWindowPane`
+                    is RawNavigationRequest -> {
+                        val requestNavigatable: Navigatable = request.navigatable
+
+                        LOG.debug { "navigateRequestLazy - RawNavigationRequest - request.navigatable is ${requestNavigatable::class.simpleName}" }
+                        when (requestNavigatable) {
+                            is OpenFileDescriptor -> {
+                                LOG.debug { "navigateRequestLazy - RawNavigationRequest - request.navigatable is OpenFileDescriptor" }
+                                receiveNextWindowPane(project, requestNavigatable.file)
+                            }
+
+                            is Navigatable -> {}
+                            else -> {}
+                        }
+                        if (requestNavigatable is PsiElement) {
+                            val kk: VirtualFile? = EditSourceUtil.getDescriptor(requestNavigatable)?.file
+                        }
+                        if (request.canNavigateToSource) {
+
+                        }
+                        val virtualFile = PsiUtilCore.getVirtualFile(request.navigatable)?.takeIf { it.isValid }
+                    }
+
+                    else -> {
+                        LOG.error("navigateRequestLazy - unsupported request ${request.javaClass.name}")
+                    }
+                }
+
+                project.serviceAsync<NavigationService>().navigate(request, navigationOptionsRequestFocus, dataContext)
+            }
         }
     }
-    navigateBlocking(project, request, NavigationOptions.requestFocus(), dataContext)
 }
 
 inline fun notifyNowhereToGo(project: Project, editor: Editor, file: PsiFile, offset: Int) {

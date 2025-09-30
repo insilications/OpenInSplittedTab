@@ -10,7 +10,6 @@ import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.actionSystem.DataSink;
 import com.intellij.openapi.actionSystem.LangDataKeys;
 import com.intellij.openapi.actionSystem.UiDataProvider;
-import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.util.PopupUtil;
@@ -30,13 +29,10 @@ import com.intellij.usages.Usage;
 import com.intellij.usages.UsageInfo2UsageAdapter;
 import com.intellij.usages.UsageToPsiElementProvider;
 import com.intellij.usages.UsageView;
-import com.intellij.usages.impl.CodeNavigateSource;
 import com.intellij.usages.impl.GroupNode;
 import com.intellij.usages.impl.UsageAdapter;
 import com.intellij.usages.impl.UsageNode;
 import com.intellij.usages.impl.UsageViewImpl;
-import com.intellij.usages.impl.UsageViewStatisticsCollector;
-import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.SmartHashSet;
 import com.intellij.util.ui.ColumnInfo;
@@ -203,14 +199,6 @@ public final class ShowUsagesTable extends JBTable implements UiDataProvider {
                             String recentSearchText = speedSearch.getComparator().getRecentSearchText();
                             int numberOfLettersTyped = recentSearchText != null ? recentSearchText.length() : 0;
                             Project project = selectedElement.getProject();
-                            ReadAction.nonBlocking(() -> actionHandler.buildFinishEventData(usageInfo)).submit(AppExecutorUtil.getAppExecutorService())
-                                    .onSuccess(finishEventData ->
-                                            UsageViewStatisticsCollector.logItemChosenInPopupFeatures(project, myUsageView, selectedElement,
-                                                    finishEventData));
-                            UsageViewStatisticsCollector.logItemChosen(project, myUsageView, CodeNavigateSource.ShowUsagesPopup, getSelectedRow(),
-                                    getRowCount(),
-                                    numberOfLettersTyped,
-                                    selectedElement.getLanguage(), false);
                         }
                         LOG.debug("prepareTable - UsageNavigationSplitted.getInstance(parameters.project).navigate");
                         UsageNavigationSplitted.getInstance(parameters.project).navigate(usageInfo, true, dataContext);

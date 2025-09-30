@@ -293,18 +293,6 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
                 project, editor, popupPosition, targetVariants, FindBundle.message("show.usages.ambiguous.title"),
                 createVariantHandler(project, editor, popupPosition, searchScope)
             )
-
-//            ShowUsagesActionSplitted.showUsages(
-//                project,
-//                targetVariants,
-//                JBPopupFactory.getInstance().guessBestPopupLocation(editor),
-//                editor,
-//                FindUsagesOptions.findScopeByName(
-//                    project,
-//                    dataContext,
-//                    FindUsagesSettings.getInstance().defaultScopeName
-//                )
-//            )
         } catch (_: IndexNotReadyException) {
             DumbService.getInstance(project).showDumbModeNotificationForFunctionality(
                 CodeInsightBundle.message("message.navigation.is.not.available.here.during.index.update"),
