@@ -16,6 +16,7 @@ import com.intellij.ide.util.EditSourceUtil
 import com.intellij.lang.LanguageNamesValidation
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.EDT
+import com.intellij.openapi.application.ReadAction.*
 import com.intellij.openapi.application.readAction
 import com.intellij.openapi.components.serviceAsync
 import com.intellij.openapi.diagnostic.Logger
@@ -166,18 +167,31 @@ fun processUser() {
 //    return stuff
 //}
 @OptIn(ExperimentalContracts::class)
-inline suspend fun getStuff(requestor: NavigationRequestor, block: (request: NavigationRequest?, preResolvedFile: VirtualFile?) -> Unit) {
+inline suspend fun getStuff(requestor: NavigationRequestor, crossinline block: suspend (request: NavigationRequest?, preResolvedFile: VirtualFile?) -> Unit) {
     contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
 //    readAction {
 //    request = requestor.navigationRequest() ?: return@readAction
 //    preResolvedFile = preResolveFileForWindowPane(request)
 //    }
     readAction {
-        val request: NavigationRequest = requestor.navigationRequest() ?: return@readAction block(null, null)
+        val request: NavigationRequest = requestor.navigationRequest() ?: return block(null, null)
         val preResolvedFile: VirtualFile? = preResolveFileForWindowPane(request)
 
     }
     block(request, preResolvedFile)
+}
+
+@OptIn(ExperimentalContracts::class)
+inline fun readActionPairLike(
+//    crossinline compute: () -> Pair<A, B>,
+    crossinline useSecond: (it1: String, it2: String) -> Unit
+): A {
+    contract { callsInPlace(useSecond, InvocationKind.EXACTLY_ONCE) }
+    return run<RuntimeException> {
+//        val (a, b) = compute()
+        useSecond("asd", "asd")   // still inside read lock!
+//        a
+    }
 }
 
 /**
@@ -185,31 +199,41 @@ inline suspend fun getStuff(requestor: NavigationRequestor, block: (request: Nav
  * We call `receiveNextWindowPane` to preemptively set the current window to the next splitted tab or a new splitted tab.
  * This forces the calls to the `navigate` method to reuse that tab. This workaround might be fragile, but it works perfectly.
  */
+@OptIn(ExperimentalContracts::class)
 @Internal
 @RequiresEdt
 inline fun navigateRequestLazy(project: Project, requestor: NavigationRequestor, editor: Editor) {
+
     // Acquire DataContext on EDT before blocking background thread
     val dataContext: DataContext = DataManager.getInstance().getDataContext(editor.component)
     runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
-
+        lateinit var bonus: String
+        lateinit var bonus2: String
+        readActionPairLike(
+//            compute = { computeStuffAndBonus() },   // returns Pair<Stuff, Bonus>
+            useSecond = { it1, it2 -> bonus = it1; bonus2 = it2 }   // still inside read lock!
+        )
         val request2: NavigationRequest?
         val preResolvedFile2: VirtualFile?
 //        val theBonus: Bonus
-        getStuff(requestor) { request, preResolvedFile ->
-            request2 = request
-            preResolvedFile2 = preResolvedFile
-        }
-//        val theStuff = getStuff { request = it }
+//        getStuff(requestor) { request, preResolvedFile ->
+//            request2 = request
+//            preResolvedFile2 = preResolvedFile
+//        }
+//        getStuff(requestor) { request, preResolvedFile ->
+//            request2 = request
+//            preResolvedFile2 = preResolvedFile
+//        }
 
-        doSomething(theStuff, theBonus)
 //
 ////                val navRequest = requestor.navigationRequest() ?: return@readAction null
 ////                val file = preResolveFileForWindowPane(navRequest)
 //        contract { callsInPlace(res, InvocationKind.EXACTLY_ONCE) }
-//            readAction {
-//                request = requestor.navigationRequest() ?: return@readAction
-//                preResolvedFile = preResolveFileForWindowPane(request)
-//            }
+
+//        readAction {
+//            request2 = requestor.navigationRequest() ?: return@readAction
+//            preResolvedFile2 = preResolveFileForWindowPane(request2)
+//        }
 //        }
 
         if (request == null) {
