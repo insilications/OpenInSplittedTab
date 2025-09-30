@@ -226,7 +226,7 @@ public class ShowUsagesAction {
 
     private static final IJTracer myFindUsagesTracer = TelemetryManager.getInstance().getTracer(FindUsagesScope);
 
-    private static int ourPopupDelayTimeout = 300;
+    private static final int ourPopupDelayTimeout = 300;
 
 //    public ShowUsagesAction() {
 //        setInjectedContext(true);
@@ -237,7 +237,7 @@ public class ShowUsagesAction {
 //        return ActionUpdateThread.BGT;
 //    }
 
-    private static class UsageNodeComparator implements Comparator<UsageNode> {
+    private static final class UsageNodeComparator implements Comparator<UsageNode> {
         private final ShowUsagesTable myTable;
 
         private UsageNodeComparator(@NotNull ShowUsagesTable table) {
@@ -367,13 +367,13 @@ public class ShowUsagesAction {
         HintManager.getInstance().hideHints(HintManager.HIDE_BY_ANY_KEY, false, false);
     }
 
-    @ApiStatus.Internal
-    public static Future<Collection<Usage>> startFindUsagesWithResult(@NotNull PsiElement element,
-                                                                      @NotNull RelativePoint popupPosition,
-                                                                      @Nullable Editor editor,
-                                                                      @Nullable SearchScope scope) {
-        return startFindUsagesWithResult(element, popupPosition, editor, scope, getUsagesTitle(element));
-    }
+//    @ApiStatus.Internal
+//    public static Future<Collection<Usage>> startFindUsagesWithResult(@NotNull PsiElement element,
+//                                                                      @NotNull RelativePoint popupPosition,
+//                                                                      @Nullable Editor editor,
+//                                                                      @Nullable SearchScope scope) {
+//        return startFindUsagesWithResult(element, popupPosition, editor, scope, getUsagesTitle(element));
+//    }
 
     @ApiStatus.Internal
     public static Future<Collection<Usage>> startFindUsagesWithResult(@NotNull PsiElement element,
@@ -388,7 +388,7 @@ public class ShowUsagesAction {
         FindUsagesOptions options;
         try (AccessToken ignore = SlowOperations.startSection(SlowOperations.ACTION_PERFORM)) {
             handler = findUsagesManager.getFindUsagesHandler(element, USAGES_WITH_DEFAULT_OPTIONS);
-            if (handler == null) return null;
+            if (handler == null) return CompletableFuture.completedFuture(Collections.emptyList());
             //noinspection deprecation
             DataContext dataContext = DataManager.getInstance().getDataContext();
             options = handler.getFindUsagesOptions(dataContext);
