@@ -37,7 +37,6 @@ import com.intellij.usages.impl.UsageNode;
 import com.intellij.usages.impl.UsageViewImpl;
 import com.intellij.usages.impl.UsageViewStatisticsCollector;
 import com.intellij.util.concurrency.AppExecutorUtil;
-import com.intellij.util.concurrency.ThreadingAssertions;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.SmartHashSet;
 import com.intellij.util.ui.ColumnInfo;
@@ -252,7 +251,7 @@ public final class ShowUsagesTable extends JBTable implements UiDataProvider {
 
     @NotNull
     MyModel setTableModel(final @NotNull List<UsageNode> data) {
-        ThreadingAssertions.assertEventDispatchThread();
+//        ThreadingAssertions.assertEventDispatchThread();
         final int columnCount = calcColumnCount(data);
         MyModel model = getModel() instanceof MyModel ? (MyModel) getModel() : null;
         if (model == null || model.getColumnCount() != columnCount) {

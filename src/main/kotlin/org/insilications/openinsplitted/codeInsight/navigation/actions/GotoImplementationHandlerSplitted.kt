@@ -21,7 +21,6 @@ import com.intellij.platform.ide.navigation.NavigationService
 import com.intellij.platform.ide.progress.runWithModalProgressBlocking
 import com.intellij.pom.Navigatable
 import com.intellij.util.concurrency.annotations.RequiresEdt
-import com.intellij.util.ui.EDT
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.insilications.openinsplitted.debug
@@ -40,8 +39,9 @@ class GotoImplementationHandlerSplitted : GotoImplementationHandler() {
         return component?.let { DataManager.getInstance().getDataContext(it) }
     }
 
+    @RequiresEdt
     override fun navigateToElement(project: Project?, descriptor: Navigatable) {
-        EDT.assertIsEdt()
+//        EDT.assertIsEdt()
 
         if (project == null) return
         IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()

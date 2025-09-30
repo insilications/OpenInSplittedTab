@@ -32,7 +32,6 @@ import com.intellij.platform.ide.navigation.navigateBlocking
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.util.concurrency.annotations.RequiresEdt
-import com.intellij.util.ui.EDT
 import org.insilications.openinsplitted.codeInsight.navigation.impl.gtdTargetNavigatable
 import org.insilications.openinsplitted.debug
 import org.jetbrains.annotations.ApiStatus.Internal
@@ -91,8 +90,9 @@ internal inline fun navigateToLookupItem(project: Project, editor: Editor): Bool
  * Obtains a [NavigationRequest] instance from [requestor] on a background thread, and calls [navigateRequest].
  */
 @Internal
+@RequiresEdt
 internal inline fun navigateRequestLazy(project: Project, requestor: NavigationRequestor, editor: Editor) {
-    EDT.assertIsEdt()
+//    EDT.assertIsEdt()
     @Suppress("DialogTitleCapitalization")
 //    Obsolescence notice
 //            See ProgressIndicator notice.
@@ -111,7 +111,6 @@ internal inline fun navigateRequestLazy(project: Project, requestor: NavigationR
 @Internal
 @RequiresEdt
 fun navigateRequest(project: Project, request: NavigationRequest, dataContext: DataContext? = null) {
-    EDT.assertIsEdt()
     IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
 
     when (request) {

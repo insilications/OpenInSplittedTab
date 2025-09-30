@@ -249,11 +249,13 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
     ) {
         when (actionResult) {
             is SingleTarget -> {
+                LOG.debug { "gotoDeclarationOnly - SingleTarget" }
                 // Just navigate to the single target
                 navigateRequestLazy(project, actionResult.requestor, editor)
             }
 
             is MultipleTargets -> {
+                LOG.debug { "gotoDeclarationOnly - MultipleTargets" }
                 val popup: JBPopup = createTargetPopup(
                     CodeInsightBundle.message("declaration.navigation.title"),
                     actionResult.targets, LazyTargetWithPresentation::presentation
