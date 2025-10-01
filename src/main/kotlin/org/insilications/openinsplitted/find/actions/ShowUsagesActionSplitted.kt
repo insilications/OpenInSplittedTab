@@ -1,7 +1,6 @@
 package org.insilications.openinsplitted.find.actions
 
 import com.intellij.find.actions.ShowUsagesAction
-import com.intellij.find.actions.ShowUsagesActionHandler
 import com.intellij.find.usages.api.SearchTarget
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor
@@ -10,6 +9,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.search.SearchScope
 import com.intellij.ui.awt.RelativePoint
 import org.insilications.openinsplitted.debug
+import org.insilications.openinsplitted.find.actions.ShowUsagesAction.showElementUsages
 import org.insilications.openinsplitted.find.actions.ShowUsagesAction.startFindUsages
 import org.jetbrains.annotations.ApiStatus
 import java.lang.invoke.MethodHandle
@@ -74,20 +74,22 @@ class ShowUsagesActionSplitted {
         ): UsageVariantHandler {
             return object : UsageVariantHandler {
                 override fun handleTarget(target: SearchTarget) {
-                    showElementUsages(
+                    LOG.debug { "handleTarget" }
+                    showUsages(
                         project, searchScope, target,
                         ShowUsagesParameters.initial(project, editor, popupPosition)
                     )
                 }
 
                 override fun handlePsi(element: PsiElement) {
+                    LOG.debug { "handlePsi" }
                     startFindUsages(element, popupPosition, editor)
                 }
             }
         }
 
         @ApiStatus.Experimental
-        fun showElementUsages(project: Project, searchScope: SearchScope, target: SearchTarget, parameters: ShowUsagesParameters) {
+        fun showUsages(project: Project, searchScope: SearchScope, target: SearchTarget, parameters: ShowUsagesParameters) {
             val createShowTargetUsagesActionHandlerInvoker: (Project, SearchScope, SearchTarget) -> ShowUsagesActionHandler =
                 createShowTargetUsagesActionHandlerCachedInvoker ?: return
             val showTargetUsagesActionHandler: ShowUsagesActionHandler = try {
@@ -96,9 +98,7 @@ class ShowUsagesActionSplitted {
                 LOG.warn("Failed to invoke gotoDeclarationOrUsages", t)
                 return
             }
-            LOG.debug { "ShowUsagesActionSplitted - showElementUsages" }
-            // TODO: Implement my custom `showElementUsagesWithResult` functionality here.
-            // showElementUsagesWithResult(parameters, actionHandler)
+            showElementUsages(parameters, showTargetUsagesActionHandler)
         }
     }
 }

@@ -171,7 +171,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -598,7 +597,6 @@ public final class ShowUsagesAction {
         };
 
         UsageSearcher usageSearcher = actionHandler.createUsageSearcher();
-        long searchStarted = System.nanoTime();
         CompletableFuture<Collection<Usage>> result = new CompletableFuture<>();
         FindUsagesManager.startProcessUsages(indicator, project, usageSearcher, collect, () -> ApplicationManager.getApplication().invokeLater(
                 () -> {
@@ -646,14 +644,6 @@ public final class ShowUsagesAction {
                             }
                         }
                         result.complete(usages);
-                    }
-                    long current = System.nanoTime();
-                    long firstUsageTimestamp = firstUsageAddedTS.get();
-                    long durationFirstResults;
-                    if (firstUsageTimestamp != 0) {
-                        durationFirstResults = TimeUnit.NANOSECONDS.toMillis(firstUsageTimestamp - searchStarted);
-                    } else { // firstUsageTimestamp == 0 means that no usage was found.
-                        durationFirstResults = -1;
                     }
                 },
                 project.getDisposed()
@@ -831,7 +821,7 @@ public final class ShowUsagesAction {
         boolean addCodePreview = properties.isValueSet(PREVIEW_PROPERTY_KEY);
         OnePixelSplitter contentSplitter = null;
         if (addCodePreview) {
-            contentSplitter = new OnePixelSplitter(true, .6f);
+            contentSplitter = new OnePixelSplitter(true, 0.6f);
             contentSplitter.setSplitterProportionKey(SPLITTER_SERVICE_KEY);
             contentSplitter.setDividerPositionStrategy(Splitter.DividerPositionStrategy.KEEP_SECOND_SIZE);
             contentSplitter.getDivider().setBackground(OnePixelDivider.BACKGROUND);
@@ -900,7 +890,7 @@ public final class ShowUsagesAction {
             maximalScope = actionHandler.getMaximalScope();
         }
         if (!(maximalScope instanceof LocalSearchScope)) {
-            DefaultActionGroup scopeChooserGroup = new DefaultActionGroup(createScopeChooser(project, contentDisposable, usageView, showUsagesPopupData));
+            DefaultActionGroup scopeChooserGroup = new DefaultActionGroup(createScopeChooser(project, contentDisposable, showUsagesPopupData));
             ActionToolbar scopeChooserToolbar =
                     actionManager.createActionToolbar(ActionPlaces.SHOW_USAGES_POPUP_TOOLBAR, scopeChooserGroup, true);
             scopeChooserToolbar.setTargetComponent(table);
@@ -1127,7 +1117,6 @@ public final class ShowUsagesAction {
     private static @NotNull ScopeChooserGroup createScopeChooser(
             @NotNull Project project,
             @NotNull Disposable parentDisposable,
-            @NotNull UsageViewImpl usageView,
             @NotNull ShowUsagesPopupData showUsagesPopupData
     ) {
         ShowUsagesActionHandler actionHandler = showUsagesPopupData.actionHandler;
@@ -1169,15 +1158,6 @@ public final class ShowUsagesAction {
         } else {
             return null;
         }
-    }
-
-    private static int getRowNumber(@Nullable UsageNode node, @NotNull ShowUsagesTable table) {
-        for (int i = 0; i < table.getRowCount(); i++) {
-            if (table.getValueAt(i, 0) == node) {
-                return i;
-            }
-        }
-        return -1;
     }
 
     private static int getUsageOffset(@NotNull Usage usage) {

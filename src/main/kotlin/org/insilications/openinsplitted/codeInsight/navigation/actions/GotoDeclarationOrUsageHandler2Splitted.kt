@@ -113,6 +113,7 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
                             handle.invokeWithArguments(project, editor, file, offset)
                         }
                     } catch (t: Throwable) {
+                        @Suppress("LongLine")
                         LOG.warn(
                             "Failed to resolve com.intellij.codeInsight.navigation.actions.GotoDeclarationOrUsageHandler2.Companion.gotoDeclarationOrUsages via reflection",
                             t
