@@ -163,14 +163,11 @@ import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -241,37 +238,38 @@ public final class ShowUsagesAction {
     }
 
     @ApiStatus.Internal
-    public static Future<Collection<Usage>> startFindUsagesWithResult(@NotNull PsiElement element,
-                                                                      @NotNull RelativePoint popupPosition,
-                                                                      @Nullable Editor editor,
-                                                                      @Nullable SearchScope scope,
-                                                                      @Nls @NotNull String title) {
+    private static void startFindUsagesWithResult(@NotNull PsiElement element,
+                                                  @NotNull RelativePoint popupPosition,
+                                                  @Nullable Editor editor,
+                                                  @Nls @NotNull String title) {
         Project project = element.getProject();
         FindUsagesManager findUsagesManager = ((FindManagerImpl) FindManager.getInstance(project)).getFindUsagesManager();
         FindUsagesHandlerBase handler;
         ShowUsagesActionHandler actionHandler;
         FindUsagesOptions options;
         handler = findUsagesManager.getFindUsagesHandler(element, USAGES_WITH_DEFAULT_OPTIONS);
-        if (handler == null) return CompletableFuture.completedFuture(Collections.emptyList());
+        if (handler == null) {
+            return;
+        }
         //noinspection deprecation
         DataContext dataContext = DataManager.getInstance().getDataContext();
         options = handler.getFindUsagesOptions(dataContext);
         if (options instanceof PersistentFindUsagesOptions) {
             ((PersistentFindUsagesOptions) options).setDefaults(project);
         }
-        if (scope != null) {
-            options.searchScope = scope;
-        } else {
-            options.searchScope = FindUsagesOptions.findScopeByName(project, dataContext, FindUsagesSettings.getInstance().getDefaultScopeName());
-        }
+//        if (scope != null) {
+//            options.searchScope = scope;
+//        } else {
+        options.searchScope = FindUsagesOptions.findScopeByName(project, dataContext, FindUsagesSettings.getInstance().getDefaultScopeName());
+//        }
         actionHandler = createActionHandler(handler, options, title);
-        return showElementUsagesWithResult(ShowUsagesParameters.initial(project, editor, popupPosition), actionHandler);
+        showElementUsagesWithResult(ShowUsagesParameters.initial(project, editor, popupPosition), actionHandler);
     }
 
     public static void startFindUsages(@NotNull PsiElement element, @NotNull RelativePoint popupPosition, @Nullable Editor editor) {
         ReadAction.nonBlocking(() -> getUsagesTitle(element))
                 .expireWhen(() -> editor != null && editor.isDisposed())
-                .finishOnUiThread(ModalityState.nonModal(), title -> startFindUsagesWithResult(element, popupPosition, editor, null, title))
+                .finishOnUiThread(ModalityState.nonModal(), title -> startFindUsagesWithResult(element, popupPosition, editor, title))
                 .submit(AppExecutorUtil.getAppExecutorService());
     }
 
@@ -402,10 +400,10 @@ public final class ShowUsagesAction {
                 return handler.getPsiElement().getLanguage();
             }
 
-            @Override
-            public @NotNull Class<?> getTargetClass() {
-                return handler.getPsiElement().getClass();
-            }
+//            @Override
+//            public @NotNull Class<?> getTargetClass() {
+//                return handler.getPsiElement().getClass();
+//            }
 
             @Override
             public boolean navigateToSingleUsageImmediately() {
@@ -414,16 +412,16 @@ public final class ShowUsagesAction {
         };
     }
 
-    static void showElementUsages(@NotNull ShowUsagesParameters parameters, @NotNull ShowUsagesActionHandler actionHandler) {
+    public static void showElementUsages(@NotNull ShowUsagesParameters parameters, @NotNull ShowUsagesActionHandler actionHandler) {
         showElementUsagesWithResult(parameters, actionHandler);
     }
 
-    private static @NotNull Future<Collection<Usage>> showElementUsagesWithResult(@NotNull ShowUsagesParameters parameters,
-                                                                                  @NotNull ShowUsagesActionHandler actionHandler) {
+    private static void showElementUsagesWithResult(@NotNull ShowUsagesParameters parameters,
+                                                    @NotNull ShowUsagesActionHandler actionHandler) {
 //        ThreadingAssertions.assertEventDispatchThread();
         Project project = parameters.project;
         UsageViewImpl usageView = actionHandler.createUsageView(project);
-        return showElementUsagesWithResult(parameters, actionHandler, usageView);
+        showElementUsagesWithResult(parameters, actionHandler, usageView);
     }
 
     @ApiStatus.Internal
@@ -439,9 +437,9 @@ public final class ShowUsagesAction {
         return null;
     }
 
-    public static Future<Collection<Usage>> showElementUsagesWithResult(@NotNull ShowUsagesParameters parameters,
-                                                                        @NotNull ShowUsagesActionHandler actionHandler,
-                                                                        @NotNull UsageViewImpl usageView) {
+    public static void showElementUsagesWithResult(@NotNull ShowUsagesParameters parameters,
+                                                   @NotNull ShowUsagesActionHandler actionHandler,
+                                                   @NotNull UsageViewImpl usageView) {
         Project project = parameters.project;
         final SearchScope searchScope = actionHandler.getSelectedScope();
         final AtomicInteger outOfScopeUsages = new AtomicInteger();
@@ -466,7 +464,7 @@ public final class ShowUsagesAction {
         Runnable itemChosenCallback = table.prepareTable(
                 showMoreUsagesRunnable(parameters, actionHandler),
                 showUsagesInMaximalScopeRunnable(parameters, actionHandler, showUsagesPopupData),
-                actionHandler, parameters
+                parameters
         );
 
         Consumer<AbstractPopup> tableResizer = popup -> {
@@ -597,7 +595,7 @@ public final class ShowUsagesAction {
         };
 
         UsageSearcher usageSearcher = actionHandler.createUsageSearcher();
-        CompletableFuture<Collection<Usage>> result = new CompletableFuture<>();
+//        CompletableFuture<Collection<Usage>> result = new CompletableFuture<>();
         FindUsagesManager.startProcessUsages(indicator, project, usageSearcher, collect, () -> ApplicationManager.getApplication().invokeLater(
                 () -> {
                     showUsagesPopupData.header.disposeProcessIcon();
@@ -643,13 +641,13 @@ public final class ShowUsagesAction {
                                 }
                             }
                         }
-                        result.complete(usages);
+//                        result.complete(usages);
                     }
                 },
                 project.getDisposed()
         ));
         actionHandler.afterOpen(popup);
-        return result;
+//        return result;
     }
 
     private static void toggleFilters(@NotNull List<? extends ToggleAction> unselectedActions) {

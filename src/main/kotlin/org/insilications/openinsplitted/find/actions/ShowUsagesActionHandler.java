@@ -44,7 +44,7 @@ public interface ShowUsagesActionHandler {
 
     @Nullable Language getTargetLanguage();
 
-    @NotNull Class<?> getTargetClass();
+//    @NotNull Class<?> getTargetClass();
 
 //  @NotNull List<EventPair<?>> getEventData();
 

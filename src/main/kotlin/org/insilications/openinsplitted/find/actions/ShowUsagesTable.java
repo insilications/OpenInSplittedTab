@@ -11,7 +11,6 @@ import com.intellij.openapi.actionSystem.DataSink;
 import com.intellij.openapi.actionSystem.LangDataKeys;
 import com.intellij.openapi.actionSystem.UiDataProvider;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.util.PopupUtil;
 import com.intellij.platform.ide.navigation.NavigationOptions;
 import com.intellij.pom.Navigatable;
@@ -110,7 +109,7 @@ public final class ShowUsagesTable extends JBTable implements UiDataProvider {
 
     @NotNull
     Runnable prepareTable(@NotNull Runnable appendMoreUsageRunnable, @NotNull Runnable showInMaximalScopeRunnable,
-                          @NotNull ShowUsagesActionHandler actionHandler, @NotNull ShowUsagesParameters parameters) {
+                          @NotNull ShowUsagesParameters parameters) {
         SpeedSearchBase<JTable> speedSearch = MySpeedSearch.installOn(this);
         speedSearch.setComparator(new SpeedSearchComparator(false));
 
@@ -194,12 +193,12 @@ public final class ShowUsagesTable extends JBTable implements UiDataProvider {
                     DataContext dataContext = parameters.editor != null ?
                             DataManager.getInstance().getDataContext(parameters.editor.getContentComponent()) : null;
                     if (usage instanceof UsageInfo usageInfo) {
-                        PsiElement selectedElement = usageInfo.getElement();
-                        if (selectedElement != null) {
-                            String recentSearchText = speedSearch.getComparator().getRecentSearchText();
-                            int numberOfLettersTyped = recentSearchText != null ? recentSearchText.length() : 0;
-                            Project project = selectedElement.getProject();
-                        }
+//                        PsiElement selectedElement = usageInfo.getElement();
+//                        if (selectedElement != null) {
+//                            String recentSearchText = speedSearch.getComparator().getRecentSearchText();
+//                            int numberOfLettersTyped = recentSearchText != null ? recentSearchText.length() : 0;
+//                            Project project = selectedElement.getProject();
+//                        }
                         LOG.debug("prepareTable - UsageNavigationSplitted.getInstance(parameters.project).navigate");
                         UsageNavigationSplitted.getInstance(parameters.project).navigate(usageInfo, true, dataContext);
                     } else if (usage instanceof Navigatable navigatable) {
@@ -210,14 +209,14 @@ public final class ShowUsagesTable extends JBTable implements UiDataProvider {
         };
     }
 
-    public boolean isFullLineNode(UsageNode node) {
-        if (node instanceof ShowUsagesAction.StringNode) return true;
-
-        Usage usage = node.getUsage();
-        return usage == USAGES_OUTSIDE_SCOPE_SEPARATOR
-                || usage == MORE_USAGES_SEPARATOR
-                || usage == USAGES_FILTERED_OUT_SEPARATOR;
-    }
+//    public boolean isFullLineNode(UsageNode node) {
+//        if (node instanceof ShowUsagesAction.StringNode) return true;
+//
+//        Usage usage = node.getUsage();
+//        return usage == USAGES_OUTSIDE_SCOPE_SEPARATOR
+//                || usage == MORE_USAGES_SEPARATOR
+//                || usage == USAGES_FILTERED_OUT_SEPARATOR;
+//    }
 
     private static @Nullable PsiElement getPsiElementForHint(Object selectedValue) {
         if (selectedValue instanceof UsageNode) {
