@@ -28,6 +28,8 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.search.SearchScope
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.list.createTargetPopup
+import com.intellij.util.concurrency.annotations.RequiresBlockingContext
+import com.intellij.util.concurrency.annotations.RequiresEdt
 import org.insilications.openinsplitted.debug
 import org.insilications.openinsplitted.find.actions.ShowUsagesActionSplitted.Companion.createVariantHandler
 import org.insilications.openinsplitted.find.actions.findShowUsages
@@ -204,6 +206,8 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
      * This function is eventually called by `GotoDeclarationAction` and its ancestors.
      * It tries to navigate to the declaration or show usages of the symbol at the caret position
      */
+    @RequiresBlockingContext
+    @RequiresEdt
     override fun invoke(project: Project, editor: Editor, file: PsiFile) {
         if (navigateToLookupItem(project, editor)) {
             LOG.debug { "navigateToLookupItem" }
@@ -243,6 +247,8 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
         }
     }
 
+    @RequiresEdt
+    @RequiresBlockingContext
     private fun gotoDeclarationOnly(
         project: Project,
         editor: Editor,

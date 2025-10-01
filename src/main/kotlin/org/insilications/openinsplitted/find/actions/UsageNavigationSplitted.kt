@@ -17,7 +17,6 @@ import com.intellij.platform.ide.navigation.NavigationService
 import com.intellij.usageView.UsageInfo
 import com.intellij.usages.Usage
 import com.intellij.usages.UsageInfo2UsageAdapter
-import com.intellij.util.concurrency.annotations.RequiresEdt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -26,7 +25,6 @@ import org.insilications.openinsplitted.codeInsight.navigation.actions.receiveNe
 import org.insilications.openinsplitted.codeInsight.navigation.impl.navigationOptionsRequestFocus
 import org.insilications.openinsplitted.debug
 import org.jetbrains.annotations.ApiStatus
-import org.jetbrains.annotations.NotNull
 
 @Service(Service.Level.PROJECT)
 @ApiStatus.Internal
@@ -45,7 +43,7 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
         editor: Editor?,
     ) {
         cs.launch(Dispatchers.EDT) {
-            val dataContext: DataContext? = editor?.let {
+            val dataContext = editor?.let {
                 DataManager.getInstance().getDataContext(it.component)
             }
 
@@ -68,8 +66,8 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
         }
     }
 
-    @RequiresEdt
-    fun navigateUsageInfo(@NotNull info: UsageInfo, dataContext: DataContext?) {
+    fun navigateUsageInfo(info: UsageInfo, dataContext: DataContext?) {
+        // Spawn on a background thread
         cs.launch {
             val (request: NavigationRequest?, file: VirtualFile?) = readAction {
                 val file: VirtualFile = info.virtualFile ?: return@readAction null to null
