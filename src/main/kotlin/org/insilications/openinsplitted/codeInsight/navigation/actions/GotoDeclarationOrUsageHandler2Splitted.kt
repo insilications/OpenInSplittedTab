@@ -256,7 +256,6 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
             }
 
             is MultipleTargets -> {
-                LOG.debug { "gotoDeclarationOnly - MultipleTargets" }
                 val popup: JBPopup = createTargetPopup(
                     CodeInsightBundle.message("declaration.navigation.title"),
                     actionResult.targets, LazyTargetWithPresentation::presentation
@@ -265,6 +264,7 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
                     navigateRequestLazy(project, requestor, editor)
                 }
                 popup.showInBestPositionFor(editor)
+                LOG.debug { "gotoDeclarationOnly - MultipleTargets" }
             }
         }
     }

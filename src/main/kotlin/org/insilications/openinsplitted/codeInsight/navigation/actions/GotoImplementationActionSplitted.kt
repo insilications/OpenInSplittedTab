@@ -10,9 +10,9 @@ import com.intellij.codeInsight.navigation.actions.GotoImplementationAction
  */
 class GotoImplementationActionSplitted : GotoImplementationAction() {
     // Reuse a single handler instance to avoid per‑invocation allocations.
-    private val sharedHandler: CodeInsightActionHandler by lazy(LazyThreadSafetyMode.PUBLICATION) {
+    private val gotoImplementationHandlerSplittedShared: CodeInsightActionHandler by lazy(LazyThreadSafetyMode.PUBLICATION) {
         GotoImplementationHandlerSplitted()
     }
 
-    protected override fun getHandler(): CodeInsightActionHandler = sharedHandler
+    protected override fun getHandler(): CodeInsightActionHandler = gotoImplementationHandlerSplittedShared
 }

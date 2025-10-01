@@ -1,7 +1,6 @@
 package org.insilications.openinsplitted.codeInsight.navigation.actions
 
 import com.intellij.codeInsight.navigation.GotoImplementationHandler
-import com.intellij.ide.DataManager
 import com.intellij.ide.IdeBundle
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.EDT
@@ -11,32 +10,24 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.fileEditor.ex.IdeDocumentHistory
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.wm.IdeFocusManager
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.impl.RawNavigationRequest
 import com.intellij.platform.backend.navigation.impl.SharedSourceNavigationRequest
 import com.intellij.platform.backend.navigation.impl.SourceNavigationRequest
-import com.intellij.platform.ide.navigation.NavigationOptions
 import com.intellij.platform.ide.navigation.NavigationService
 import com.intellij.platform.ide.progress.runWithModalProgressBlocking
 import com.intellij.pom.Navigatable
 import com.intellij.util.concurrency.annotations.RequiresEdt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.insilications.openinsplitted.codeInsight.navigation.impl.fetchDataContext
+import org.insilications.openinsplitted.codeInsight.navigation.impl.navigationOptionsRequestFocus
 import org.insilications.openinsplitted.debug
 
 class GotoImplementationHandlerSplitted : GotoImplementationHandler() {
     companion object {
         private val LOG: Logger = Logger.getInstance("org.insilications.openinsplitted")
 
-    }
-
-    private val requestFocus: NavigationOptions = NavigationOptions.requestFocus()
-
-    @RequiresEdt
-    private fun fetchDataContext(project: Project): DataContext? {
-        val component = IdeFocusManager.getInstance(project).focusOwner
-        return component?.let { DataManager.getInstance().getDataContext(it) }
     }
 
     @RequiresEdt
@@ -55,7 +46,7 @@ class GotoImplementationHandlerSplitted : GotoImplementationHandler() {
                 withContext(Dispatchers.EDT) {
                     receiveNextWindowPane(project, descriptor.file)
                 }
-                project.serviceAsync<NavigationService>().navigate(descriptor, requestFocus, dataContext)
+                project.serviceAsync<NavigationService>().navigate(descriptor, navigationOptionsRequestFocus, dataContext)
             } else {
                 val navigationRequest: NavigationRequest? = readAction {
                     descriptor.navigationRequest()
@@ -96,7 +87,7 @@ class GotoImplementationHandlerSplitted : GotoImplementationHandler() {
                         }
                     }
 
-                    project.serviceAsync<NavigationService>().navigate(navigationRequest, requestFocus, dataContext)
+                    project.serviceAsync<NavigationService>().navigate(navigationRequest, navigationOptionsRequestFocus, dataContext)
                 } else {
                     LOG.debug { "7 GotoImplementationHandlerSplitted - navigateToElement - navigationRequest is null" }
                     return@runWithModalProgressBlocking

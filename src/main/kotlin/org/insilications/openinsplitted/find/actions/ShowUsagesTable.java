@@ -192,12 +192,6 @@ public final class ShowUsagesTable extends JBTable implements UiDataProvider {
                     DataContext dataContext = parameters.editor != null ?
                             DataManager.getInstance().getDataContext(parameters.editor.getContentComponent()) : null;
                     if (usage instanceof UsageInfo usageInfo) {
-//                        PsiElement selectedElement = usageInfo.getElement();
-//                        if (selectedElement != null) {
-//                            String recentSearchText = speedSearch.getComparator().getRecentSearchText();
-//                            int numberOfLettersTyped = recentSearchText != null ? recentSearchText.length() : 0;
-//                            Project project = selectedElement.getProject();
-//                        }
                         LOG.debug("prepareTable - usage instanceof UsageInfo");
                         UsageNavigationSplitted.getInstance(parameters.project).navigateUsageInfo(usageInfo, dataContext);
                     } else if (usage instanceof Navigatable navigatable) {
@@ -208,15 +202,6 @@ public final class ShowUsagesTable extends JBTable implements UiDataProvider {
             }
         };
     }
-
-//    public boolean isFullLineNode(UsageNode node) {
-//        if (node instanceof ShowUsagesAction.StringNode) return true;
-//
-//        Usage usage = node.getUsage();
-//        return usage == USAGES_OUTSIDE_SCOPE_SEPARATOR
-//                || usage == MORE_USAGES_SEPARATOR
-//                || usage == USAGES_FILTERED_OUT_SEPARATOR;
-//    }
 
     private static @Nullable PsiElement getPsiElementForHint(Object selectedValue) {
         if (selectedValue instanceof UsageNode) {

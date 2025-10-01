@@ -11,11 +11,11 @@ import com.intellij.openapi.actionSystem.DataContext
  */
 class GotoDeclarationActionSplitted : GotoDeclarationAction() {
     // Reuse a single handler instance to avoid per‑invocation allocations.
-    private val sharedHandler: CodeInsightActionHandler by lazy(LazyThreadSafetyMode.PUBLICATION) {
+    private val gotoDeclarationOrUsageHandler2SplittedShared: CodeInsightActionHandler by lazy(LazyThreadSafetyMode.PUBLICATION) {
         GotoDeclarationOrUsageHandler2Splitted()
     }
 
-    protected override fun getHandler(): CodeInsightActionHandler = sharedHandler
+    protected override fun getHandler(): CodeInsightActionHandler = gotoDeclarationOrUsageHandler2SplittedShared
 
-    protected override fun getHandler(dataContext: DataContext): CodeInsightActionHandler = sharedHandler
+    protected override fun getHandler(dataContext: DataContext): CodeInsightActionHandler = gotoDeclarationOrUsageHandler2SplittedShared
 }

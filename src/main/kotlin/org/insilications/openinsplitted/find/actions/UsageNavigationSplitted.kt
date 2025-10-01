@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.insilications.openinsplitted.codeInsight.navigation.actions.receiveNextWindowPane
 import org.insilications.openinsplitted.codeInsight.navigation.impl.navigationOptionsRequestFocus
+import org.insilications.openinsplitted.debug
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.annotations.NotNull
 
@@ -44,13 +45,20 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
         editor: Editor?,
     ) {
         cs.launch(Dispatchers.EDT) {
-            val dataContext = editor?.let {
+            val dataContext: DataContext? = editor?.let {
                 DataManager.getInstance().getDataContext(it.component)
             }
+
             if (usage is UsageInfo2UsageAdapter) {
+                // History update belongs on EDT
+                IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
                 receiveNextWindowPane(project, usage.file)
+                LOG.debug { "0 navigateAndHint - usage is ${usage::class.simpleName}" }
             } else {
+                // History update belongs on EDT
+                IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
                 receiveNextWindowPane(project, null)
+                LOG.debug { "1 navigateAndHint - usage is ${usage::class.simpleName}" }
 
             }
             NavigationService.getInstance(project).navigate(usage, navigationOptionsRequestFocus, dataContext)
@@ -88,39 +96,4 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
             )
         }
     }
-//
-//    private suspend fun navigateUsageInfo(
-//        info: UsageInfo,
-//        requestFocus: Boolean,
-//        dataContext: DataContext?,
-//    ) {
-////        val request = readAction {
-////            val offset = info.navigationOffset
-////            val project = info.project
-////            val file = info.virtualFile ?: return@readAction null
-////            NavigationRequest.sourceNavigationRequest(project, file, offset
-////        }
-//        val prepared = readAction {
-//            val file = info.virtualFile ?: return@readAction null
-//            val offset = info.navigationOffset
-//            val req = NavigationRequest
-//                .sourceNavigationRequest(project /* class property */, file, offset)
-//                ?: return@readAction null
-//            PreparedNav(file, req)
-//        } ?: return
-//
-//        withContext(Dispatchers.EDT) {
-//            receiveNextWindowPane(project, prepared.file)
-//        }
-//
-//        NavigationService.getInstance(project).navigate(
-//            prepared.request,
-//            navigationOptionsRequestFocus,
-//            dataContext
-//        )
-////        request?.let {
-////            readActionBlocking { UsageViewStatisticsCollector.logUsageNavigate(project, info) }
-////            NavigationService.getInstance(project).navigate(it, NavigationOptions.defaultOptions().requestFocus(requestFocus), dataContext)
-////        }
-//    }
 }

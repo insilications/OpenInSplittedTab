@@ -27,7 +27,6 @@ import com.intellij.openapi.fileEditor.impl.EditorWindow
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.registry.Registry
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.openapi.wm.IdeFocusManager
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.impl.RawNavigationRequest
 import com.intellij.platform.backend.navigation.impl.SourceNavigationRequest
@@ -41,6 +40,7 @@ import com.intellij.util.concurrency.annotations.RequiresEdt
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.insilications.openinsplitted.codeInsight.navigation.impl.fetchDataContext
 import org.insilications.openinsplitted.codeInsight.navigation.impl.gtdTargetNavigatable
 import org.insilications.openinsplitted.codeInsight.navigation.impl.navigationOptionsRequestFocus
 import org.insilications.openinsplitted.codeInsight.navigation.impl.progressTitlePreparingNavigation
@@ -129,12 +129,6 @@ inline fun navigateRequestLazy(project: Project, requestor: NavigationRequestor,
             project.serviceAsync<NavigationService>().navigate(request, navigationOptionsRequestFocus, dataContext)
         }
     }
-}
-
-@RequiresEdt
-fun fetchDataContext(project: Project): DataContext? {
-    val component = IdeFocusManager.getInstance(project).focusOwner
-    return component?.let { DataManager.getInstance().getDataContext(it) }
 }
 
 /**

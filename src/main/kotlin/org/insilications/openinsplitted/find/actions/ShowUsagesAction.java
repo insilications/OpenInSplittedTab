@@ -621,18 +621,18 @@ public final class ShowUsagesAction {
                                     cancelAndShowHint(popup, true, hint, parameters, actionHandler);
                                 } else {
                                     String hint = UsageViewBundle.message("show.usages.only.usage", searchScope.getDisplayName());
-                                    LOG.debug("showElementUsagesWithResult - usages.size() == 1");
                                     UsageNavigationSplitted.getInstance(project).navigateAndHint(
                                             project, usage, () -> onReady.accept(usage, hint), parameters.editor);
+                                    LOG.debug("showElementUsagesWithResult - usages.size() == 1");
                                 }
                             } else {
                                 // usage view can filter usages down to one
                                 Usage visibleUsage = visibleUsages.iterator().next();
                                 if (areAllUsagesInOneLine(visibleUsage, usages)) {
                                     String hint = UsageViewBundle.message("all.usages.are.in.this.line", usages.size(), searchScope.getDisplayName());
-                                    LOG.debug("showElementUsagesWithResult - usages.size() != 1");
                                     UsageNavigationSplitted.getInstance(project).navigateAndHint(
                                             project, visibleUsage, () -> onReady.accept(visibleUsage, hint), parameters.editor);
+                                    LOG.debug("showElementUsagesWithResult - usages.size() != 1");
                                 }
                             }
                         }
