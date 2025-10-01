@@ -199,7 +199,7 @@ public final class ShowUsagesTable extends JBTable implements UiDataProvider {
 //                            Project project = selectedElement.getProject();
 //                        }
                         LOG.debug("prepareTable - usage instanceof UsageInfo");
-                        UsageNavigationSplitted.getInstance(parameters.project).navigateUsageInfo(usageInfo, true, dataContext);
+                        UsageNavigationSplitted.getInstance(parameters.project).navigateUsageInfo(usageInfo, dataContext);
                     } else if (usage instanceof Navigatable navigatable) {
                         LOG.debug("prepareTable - usage instanceof Navigatable");
                         navigateRequestLazyNavigatable(parameters.project, navigatable, dataContext);

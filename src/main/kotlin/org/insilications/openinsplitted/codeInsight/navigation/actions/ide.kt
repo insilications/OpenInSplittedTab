@@ -115,6 +115,7 @@ inline fun navigateRequestLazy(project: Project, requestor: NavigationRequestor,
         }
 
         if (request == null) {
+            LOG.warn("navigateRequestLazy - Failed to create navigation request")
             return@runWithModalProgressBlocking
         }
 
