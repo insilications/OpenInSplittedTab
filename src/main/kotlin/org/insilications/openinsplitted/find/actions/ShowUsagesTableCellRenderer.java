@@ -216,7 +216,10 @@ final class ShowUsagesTableCellRenderer implements TableCellRenderer {
                         origin.setIconTextGap(JBUIScale.scale(5)); // for this particular icon it looks better
 
                         // use attributes of "line number" to show "Current" word
-                        SimpleTextAttributes attributes = text.length == 0 ? SimpleTextAttributes.REGULAR_ATTRIBUTES.derive(-1, new Color(0x808080), null, null) : getAttributes(isSelected, fileBgColor, selectionBg, selectionFg, text[0]);
+                        //noinspection UseJBColor
+                        SimpleTextAttributes attributes =
+                                text.length == 0 ? SimpleTextAttributes.REGULAR_ATTRIBUTES.derive(-1, new Color(0x808080), null, null) :
+                                        getAttributes(isSelected, fileBgColor, selectionBg, selectionFg, text[0]);
                         origin.append("| " + FindBundle.message("show.usages.current.usage.label"), attributes);
                         origin.appendTextPadding(JBUIScale.scale(45));
                     }

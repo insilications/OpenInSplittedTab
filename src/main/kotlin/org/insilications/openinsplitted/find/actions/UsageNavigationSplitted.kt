@@ -22,9 +22,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.insilications.openinsplitted.codeInsight.navigation.actions.receiveNextWindowPane
+import org.insilications.openinsplitted.codeInsight.navigation.impl.navigationOptionsRequestFocus
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.annotations.NotNull
-
 
 @Service(Service.Level.PROJECT)
 @ApiStatus.Internal
@@ -64,44 +64,71 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
         }
     }
 
-    fun navigate(@NotNull info: UsageInfo, requestFocus: Boolean, dataContext: DataContext?) {
+    fun navigateUsageInfo(@NotNull info: UsageInfo, requestFocus: Boolean, dataContext: DataContext?) {
         cs.launch {
-            navigateUsageInfo(info, requestFocus, dataContext)
-        }
-    }
-
-    private suspend fun navigateUsageInfo(
-        info: UsageInfo,
-        requestFocus: Boolean,
-        dataContext: DataContext?,
-    ) {
 //        val request = readAction {
 //            val offset = info.navigationOffset
 //            val project = info.project
 //            val file = info.virtualFile ?: return@readAction null
 //            NavigationRequest.sourceNavigationRequest(project, file, offset
 //        }
-        val prepared = readAction {
-            val file = info.virtualFile ?: return@readAction null
-            val offset = info.navigationOffset
-            val req = NavigationRequest
-                .sourceNavigationRequest(project /* class property */, file, offset)
-                ?: return@readAction null
-            PreparedNav(file, req)
-        } ?: return
+            val prepared = readAction {
+                val file = info.virtualFile ?: return@readAction null
+                val offset = info.navigationOffset
+                val req = NavigationRequest
+                    .sourceNavigationRequest(project /* class property */, file, offset)
+                    ?: return@readAction null
+                PreparedNav(file, req)
+            } ?: return
 
-        withContext(Dispatchers.EDT) {
-            receiveNextWindowPane(project, prepared.file)
-        }
+            withContext(Dispatchers.EDT) {
+                receiveNextWindowPane(project, prepared.file)
+            }
 
-        NavigationService.getInstance(project).navigate(
-            prepared.request,
-            NavigationOptions.defaultOptions().requestFocus(requestFocus),
-            dataContext
-        )
+            NavigationService.getInstance(project).navigate(
+                prepared.request,
+                navigationOptionsRequestFocus,
+                dataContext
+            )
 //        request?.let {
 //            readActionBlocking { UsageViewStatisticsCollector.logUsageNavigate(project, info) }
 //            NavigationService.getInstance(project).navigate(it, NavigationOptions.defaultOptions().requestFocus(requestFocus), dataContext)
 //        }
+        }
     }
+//
+//    private suspend fun navigateUsageInfo(
+//        info: UsageInfo,
+//        requestFocus: Boolean,
+//        dataContext: DataContext?,
+//    ) {
+////        val request = readAction {
+////            val offset = info.navigationOffset
+////            val project = info.project
+////            val file = info.virtualFile ?: return@readAction null
+////            NavigationRequest.sourceNavigationRequest(project, file, offset
+////        }
+//        val prepared = readAction {
+//            val file = info.virtualFile ?: return@readAction null
+//            val offset = info.navigationOffset
+//            val req = NavigationRequest
+//                .sourceNavigationRequest(project /* class property */, file, offset)
+//                ?: return@readAction null
+//            PreparedNav(file, req)
+//        } ?: return
+//
+//        withContext(Dispatchers.EDT) {
+//            receiveNextWindowPane(project, prepared.file)
+//        }
+//
+//        NavigationService.getInstance(project).navigate(
+//            prepared.request,
+//            navigationOptionsRequestFocus,
+//            dataContext
+//        )
+////        request?.let {
+////            readActionBlocking { UsageViewStatisticsCollector.logUsageNavigate(project, info) }
+////            NavigationService.getInstance(project).navigate(it, NavigationOptions.defaultOptions().requestFocus(requestFocus), dataContext)
+////        }
+//    }
 }

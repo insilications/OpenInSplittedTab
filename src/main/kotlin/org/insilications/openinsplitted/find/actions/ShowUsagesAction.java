@@ -257,11 +257,7 @@ public final class ShowUsagesAction {
         if (options instanceof PersistentFindUsagesOptions) {
             ((PersistentFindUsagesOptions) options).setDefaults(project);
         }
-//        if (scope != null) {
-//            options.searchScope = scope;
-//        } else {
         options.searchScope = FindUsagesOptions.findScopeByName(project, dataContext, FindUsagesSettings.getInstance().getDefaultScopeName());
-//        }
         actionHandler = createActionHandler(handler, options, title);
         showElementUsagesWithResult(ShowUsagesParameters.initial(project, editor, popupPosition), actionHandler);
     }
@@ -625,17 +621,16 @@ public final class ShowUsagesAction {
                                     cancelAndShowHint(popup, true, hint, parameters, actionHandler);
                                 } else {
                                     String hint = UsageViewBundle.message("show.usages.only.usage", searchScope.getDisplayName());
-                                    LOG.debug("0 navigateAndHint: ");
+                                    LOG.debug("showElementUsagesWithResult - usages.size() == 1");
                                     UsageNavigationSplitted.getInstance(project).navigateAndHint(
                                             project, usage, () -> onReady.accept(usage, hint), parameters.editor);
                                 }
                             } else {
-                                //  assert usages.size() > 1 : usages;
                                 // usage view can filter usages down to one
                                 Usage visibleUsage = visibleUsages.iterator().next();
                                 if (areAllUsagesInOneLine(visibleUsage, usages)) {
                                     String hint = UsageViewBundle.message("all.usages.are.in.this.line", usages.size(), searchScope.getDisplayName());
-                                    LOG.debug("1 navigateAndHint: ");
+                                    LOG.debug("showElementUsagesWithResult - usages.size() != 1");
                                     UsageNavigationSplitted.getInstance(project).navigateAndHint(
                                             project, visibleUsage, () -> onReady.accept(visibleUsage, hint), parameters.editor);
                                 }
@@ -1103,7 +1098,7 @@ public final class ShowUsagesAction {
 
     static void cancel(@Nullable AbstractPopup popup, @Nullable ShowUsagesActionHandler actionHandler, @Nullable String closeReason) {
         if (popup != null) {
-            // TODO: think about better API for providing information about closing reason
+            // think about better API for providing information about closing reason
             // It is important for RDCT - in some cases we have to terminate protocol session, but in some we can not do it
             if (actionHandler != null) {
                 actionHandler.beforeClose(closeReason);

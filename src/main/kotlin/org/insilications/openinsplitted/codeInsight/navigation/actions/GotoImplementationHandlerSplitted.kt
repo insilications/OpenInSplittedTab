@@ -63,6 +63,7 @@ class GotoImplementationHandlerSplitted : GotoImplementationHandler() {
                 if (navigationRequest != null) {
                     LOG.debug { "2 GotoImplementationHandlerSplitted - navigateToElement - navigationRequest is ${navigationRequest::class.simpleName}" }
 
+                    @Suppress("LongLine")
                     when (navigationRequest) {
                         // 1. SharedSourceNavigationRequest is a subclass of SourceNavigationRequest, so check for it first.
                         is SharedSourceNavigationRequest -> {

@@ -53,6 +53,7 @@ public interface ShowUsagesActionHandler {
     boolean navigateToSingleUsageImmediately();
 
     default UsageViewImpl createUsageView(Project project) {
+        //noinspection IncorrectServiceRetrieving
         return project.getService(UsageViewPopupManager.class).createUsageViewPopup(getTargetLanguage());
     }
 

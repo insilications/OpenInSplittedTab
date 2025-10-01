@@ -27,6 +27,7 @@ import com.intellij.openapi.fileEditor.impl.EditorWindow
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.registry.Registry
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.wm.IdeFocusManager
 import com.intellij.platform.backend.navigation.NavigationRequest
 import com.intellij.platform.backend.navigation.impl.RawNavigationRequest
 import com.intellij.platform.backend.navigation.impl.SourceNavigationRequest
@@ -108,8 +109,46 @@ inline fun navigateRequestLazy(project: Project, requestor: NavigationRequestor,
     // Acquire DataContext on EDT before blocking background thread
     val dataContext: DataContext = DataManager.getInstance().getDataContext(editor.component)
     runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
-        val (request, preResolvedFile) = readAction {
-            val request = requestor.navigationRequest() ?: return@readAction null to null
+        val (request: NavigationRequest?, preResolvedFile: VirtualFile?) = readAction {
+            val request: NavigationRequest = requestor.navigationRequest() ?: return@readAction null to null
+            return@readAction request to preResolveFileForWindowPane(request)
+        }
+
+        if (request == null) {
+            return@runWithModalProgressBlocking
+        }
+
+        // Switch to EDT for UI side-effects
+        withContext(Dispatchers.EDT) {
+            // History update belongs on EDT
+            IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
+            receiveNextWindowPane(project, preResolvedFile)
+
+            // Delegate to the platform to perform actual navigation (single unified call).
+            project.serviceAsync<NavigationService>().navigate(request, navigationOptionsRequestFocus, dataContext)
+        }
+    }
+}
+
+@RequiresEdt
+fun fetchDataContext(project: Project): DataContext? {
+    val component = IdeFocusManager.getInstance(project).focusOwner
+    return component?.let { DataManager.getInstance().getDataContext(it) }
+}
+
+/**
+ * This function retrieves a navigation request from the provided [navigatable] and navigates to it.
+ * We call `receiveNextWindowPane` to preemptively set the current window to the next splitted tab or a new splitted tab.
+ * This forces the calls to the `navigate` method to reuse that tab. This workaround might be fragile, but it works perfectly.
+ */
+@Internal
+@RequiresEdt
+inline fun navigateRequestLazyNavigatable(project: Project, navigatable: Navigatable, dataContext: DataContext?) {
+    // Acquire DataContext on EDT before blocking background thread
+    val dataContext = dataContext ?: fetchDataContext(project)
+    runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
+        val (request: NavigationRequest?, preResolvedFile: VirtualFile?) = readAction {
+            val request: NavigationRequest = navigatable.navigationRequest() ?: return@readAction null to null
             return@readAction request to preResolveFileForWindowPane(request)
         }
 
@@ -135,18 +174,18 @@ fun preResolveFileForWindowPane(request: NavigationRequest): VirtualFile? {
     return when (request) {
         // `SharedSourceNavigationRequest` is a subclass of `SourceNavigationRequest`.
         is SourceNavigationRequest -> {
-            LOG.debug { "navigateRequestLazy - SourceNavigationRequest" }
+            LOG.debug { "preResolveFileForWindowPane - SourceNavigationRequest" }
             request.file
         }
 
         is RawNavigationRequest -> {
-            LOG.debug { "navigateRequestLazy - RawNavigationRequest" }
+            LOG.debug { "preResolveFileForWindowPane - RawNavigationRequest" }
             extractFileFromNavigatable(request.navigatable)
         }
         // `DirectoryNavigationRequest` is non-source, so we don't need to handle it
         // It can be handled perfectly by `NavigationService.navigate`
         else -> {
-            LOG.debug { "navigateRequestLazy - Unsupported request: ${request::class.simpleName}" }
+            LOG.debug { "preResolveFileForWindowPane - Unsupported request: ${request::class.simpleName}" }
             null
         }
     }
@@ -166,13 +205,13 @@ inline fun extractFileFromNavigatable(nav: Navigatable): VirtualFile? {
         // It even calls the `PsiUtilCore.getVirtualFile` if necessary
         val descriptor: Navigatable? = EditSourceUtil.getDescriptor(nav)
         if (descriptor is OpenFileDescriptor) {
-            LOG.debug { "navigateRequestLazy - RawNavigationRequest - descriptor is OpenFileDescriptor" }
+            LOG.debug { "extractFileFromNavigatable - RawNavigationRequest - descriptor is OpenFileDescriptor" }
             return descriptor.file
         }
 
         if (descriptor != null) {
             if (descriptor is PsiElement && descriptor.isValid) {
-                LOG.debug { "navigateRequestLazy - RawNavigationRequest - descriptor is PsiElement or ${descriptor::class.simpleName}" }
+                LOG.debug { "extractFileFromNavigatable - RawNavigationRequest - descriptor is PsiElement or ${descriptor::class.simpleName}" }
                 PsiUtilCore.getVirtualFile(descriptor)?.let { return it }
             }
         }

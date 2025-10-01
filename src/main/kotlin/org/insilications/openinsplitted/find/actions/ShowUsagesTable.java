@@ -1,7 +1,7 @@
 // Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
 package org.insilications.openinsplitted.find.actions;
 
-import static com.intellij.platform.ide.navigation.NavigationServiceKt.navigateBlocking;
+import static org.insilications.openinsplitted.codeInsight.navigation.actions.IdeKt.navigateRequestLazyNavigatable;
 
 import com.intellij.ide.DataManager;
 import com.intellij.ide.util.gotoByName.ModelDiff;
@@ -12,7 +12,6 @@ import com.intellij.openapi.actionSystem.LangDataKeys;
 import com.intellij.openapi.actionSystem.UiDataProvider;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.ui.popup.util.PopupUtil;
-import com.intellij.platform.ide.navigation.NavigationOptions;
 import com.intellij.pom.Navigatable;
 import com.intellij.psi.PsiElement;
 import com.intellij.ui.ExperimentalUI;
@@ -199,10 +198,11 @@ public final class ShowUsagesTable extends JBTable implements UiDataProvider {
 //                            int numberOfLettersTyped = recentSearchText != null ? recentSearchText.length() : 0;
 //                            Project project = selectedElement.getProject();
 //                        }
-                        LOG.debug("prepareTable - UsageNavigationSplitted.getInstance(parameters.project).navigate");
-                        UsageNavigationSplitted.getInstance(parameters.project).navigate(usageInfo, true, dataContext);
+                        LOG.debug("prepareTable - usage instanceof UsageInfo");
+                        UsageNavigationSplitted.getInstance(parameters.project).navigateUsageInfo(usageInfo, true, dataContext);
                     } else if (usage instanceof Navigatable navigatable) {
-                        navigateBlocking(parameters.project, navigatable, NavigationOptions.requestFocus(), dataContext);
+                        LOG.debug("prepareTable - usage instanceof Navigatable");
+                        navigateRequestLazyNavigatable(parameters.project, navigatable, dataContext);
                     }
                 }
             }
