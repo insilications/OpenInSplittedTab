@@ -44,10 +44,6 @@ public interface ShowUsagesActionHandler {
 
     @Nullable Language getTargetLanguage();
 
-//    @NotNull Class<?> getTargetClass();
-
-//  @NotNull List<EventPair<?>> getEventData();
-
     default void afterOpen(@NotNull AbstractPopup popup) {
     }
 
@@ -55,8 +51,6 @@ public interface ShowUsagesActionHandler {
     }
 
     boolean navigateToSingleUsageImmediately();
-
-//  @NotNull List<EventPair<?>> buildFinishEventData(@Nullable UsageInfo selectedUsage);
 
     default UsageViewImpl createUsageView(Project project) {
         return project.getService(UsageViewPopupManager.class).createUsageViewPopup(getTargetLanguage());

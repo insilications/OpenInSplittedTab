@@ -459,7 +459,7 @@ public final class ShowUsagesAction {
         Set<Usage> visibleUsages = new LinkedHashSet<>();
         table.setTableModel(new SmartList<>(new StringNode(UsageViewBundle.message("progress.searching"))));
 
-        ShowUsagesPopupData showUsagesPopupData = new ShowUsagesPopupData(parameters, table, actionHandler, usageView);
+        ShowUsagesPopupData showUsagesPopupData = new ShowUsagesPopupData(parameters, table, actionHandler);
 
         Runnable itemChosenCallback = table.prepareTable(
                 showMoreUsagesRunnable(parameters, actionHandler),
