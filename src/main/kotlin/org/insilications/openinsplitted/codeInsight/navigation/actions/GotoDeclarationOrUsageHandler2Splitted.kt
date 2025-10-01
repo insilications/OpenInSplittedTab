@@ -31,7 +31,7 @@ import com.intellij.ui.list.createTargetPopup
 import org.insilications.openinsplitted.debug
 import org.insilications.openinsplitted.find.actions.ShowUsagesActionSplitted.Companion.createVariantHandler
 import org.insilications.openinsplitted.find.actions.findShowUsages
-import org.jetbrains.annotations.ApiStatus.Internal
+import org.jetbrains.annotations.ApiStatus
 import java.lang.invoke.MethodHandle
 import java.lang.invoke.MethodHandles
 import java.lang.invoke.MethodType
@@ -48,7 +48,7 @@ sealed class GTDUActionResultMirror {
      * Go To Declaration
      */
 
-    @Internal
+    @ApiStatus.Internal
     class GTD(val navigationActionResult: NavigationActionResult) : GTDUActionResultMirror()
 
     /**

@@ -71,10 +71,10 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
     @RequiresEdt
     fun navigateUsageInfo(@NotNull info: UsageInfo, dataContext: DataContext?) {
         cs.launch {
-            val (request: NavigationRequest?, preResolvedFile: VirtualFile?) = readAction {
+            val (request: NavigationRequest?, file: VirtualFile?) = readAction {
                 val file: VirtualFile = info.virtualFile ?: return@readAction null to null
                 NavigationRequest
-                    .sourceNavigationRequest(project, file, info.navigationOffset) to file
+                    .sourceNavigationRequest(info.project, file, info.navigationOffset) to file
 
             }
 
@@ -86,7 +86,7 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
             withContext(Dispatchers.EDT) {
                 // History update belongs on EDT
                 IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
-                receiveNextWindowPane(project, preResolvedFile)
+                receiveNextWindowPane(project, file)
             }
 
             NavigationService.getInstance(project).navigate(

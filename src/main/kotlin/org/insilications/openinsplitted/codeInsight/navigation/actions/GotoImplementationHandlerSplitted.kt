@@ -27,7 +27,6 @@ import org.insilications.openinsplitted.debug
 class GotoImplementationHandlerSplitted : GotoImplementationHandler() {
     companion object {
         private val LOG: Logger = Logger.getInstance("org.insilications.openinsplitted")
-
     }
 
     @RequiresEdt
@@ -35,15 +34,17 @@ class GotoImplementationHandlerSplitted : GotoImplementationHandler() {
 //        EDT.assertIsEdt()
 
         if (project == null) return
-        IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
+
         val dataContext: DataContext? = fetchDataContext(project)
 
-        LOG.debug { "0 GotoImplementationHandlerSplitted - navigateToElement - descriptor is ${descriptor::class.simpleName}" }
-        // NavigationService.getInstance(project).navigate(
+        LOG.debug { "GotoImplementationHandlerSplitted - navigateToElement - descriptor is ${descriptor::class.simpleName}" }
+
         runWithModalProgressBlocking(project, IdeBundle.message("progress.title.preparing.navigation")) {
             if (descriptor is OpenFileDescriptor) {
                 LOG.debug { "1 GotoImplementationHandlerSplitted - navigateToElement - descriptor is ${descriptor::class.simpleName}" }
                 withContext(Dispatchers.EDT) {
+                    // History update belongs on EDT
+                    IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
                     receiveNextWindowPane(project, descriptor.file)
                 }
                 project.serviceAsync<NavigationService>().navigate(descriptor, navigationOptionsRequestFocus, dataContext)
