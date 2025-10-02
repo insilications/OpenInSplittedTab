@@ -24,6 +24,7 @@ import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.openapi.fileEditor.ex.IdeDocumentHistory
 import com.intellij.openapi.fileEditor.impl.EditorWindow
+import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.registry.Registry
 import com.intellij.openapi.vfs.VirtualFile
@@ -110,6 +111,13 @@ inline fun navigateToLookupItem(project: Project, editor: Editor): Boolean {
 @RequiresBlockingContext
 inline fun navigateRequestLazy(project: Project, requestor: NavigationRequestor, editor: Editor) {
     runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
+
+        val dumbService = DumbService.getInstance(project)
+
+//        val readComputable = ThrowableComputable<NavigationRequest, RuntimeException> {
+//            ApplicationManager.getApplication().runReadAction(Computable { requestor.navigationRequest() })
+//        }
+//        val kk = readComputable.compute()
 //        val request = underModalProgress(project, ActionsBundle.actionText("GotoDeclarationOnly")) {
 //            requestor.navigationRequest()
 //        } ?: LOG.warn("navigateRequestLazy - Failed to create navigation request").let { return@runWithModalProgressBlocking }

@@ -117,14 +117,23 @@ fun <T> underModalProgress(
 suspend fun <T> underModalProgressSuspend(
     project: Project,
     progressTitle: @NlsContexts.ProgressTitle String,
+//    computable: Computable<T>,
     computable: () -> T,
+//    eita: T,
 ): T {
+//    val kk = { println("Hello") }
+//    val kk3: Supplier<T> = { eita }
+//    val kk4 = Computable { eita }
+//    val kk5 = kk4.compute()
+//    val kk2: () -> T = { println("Hello") }
     val dumbService = DumbService.getInstance(project)
     val useAlternativeResolve = dumbService.isAlternativeResolveEnabled
 
-    val readComputable = ThrowableComputable<T, RuntimeException> {
-        ApplicationManager.getApplication().runReadAction(Computable { computable() })
-    }
+    val readComputable = ThrowableComputable<T, RuntimeException> { ApplicationManager.getApplication().runReadAction(Computable { computable() }) }
+//    val readComputable = ThrowableComputable<T, RuntimeException> {
+//        ApplicationManager.getApplication().runReadAction(Computable { computable() })
+//        ApplicationManager.getApplication().runReadAction(Supplier<T> { computable() })
+//    }
     val readComputable2 = readAction { computable() }
     val prioritizedComputable = ThrowableComputable<T, RuntimeException> {
         ProgressManager.getInstance().computePrioritized(readComputable)
