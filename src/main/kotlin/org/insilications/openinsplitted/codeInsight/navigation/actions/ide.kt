@@ -150,7 +150,7 @@ inline fun navigateToLookupItem(project: Project, editor: Editor): Boolean {
 @ApiStatus.Internal
 @RequiresEdt
 @RequiresBlockingContext
-inline fun navigateToRequestor(project: Project, requestor: NavigationRequestor, editor: Editor) {
+inline fun navigateToRequestor2(project: Project, requestor: NavigationRequestor, editor: Editor) {
     printCurrentThreadContext("navigateToRequestor - 0")
     LOG.debug { "0 navigateToRequestor - requestor is ${requestor::class.simpleName}" }
     runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
@@ -176,6 +176,50 @@ inline fun navigateToRequestor(project: Project, requestor: NavigationRequestor,
             IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
             receiveNextWindowPane(project) {
                 getVirtualFileFromNavigationRequest(request)
+            }
+        }
+
+        // Delegate to the platform's `IdeNavigationService.kt` to perform actual navigation
+        project.serviceAsync<NavigationService>().navigate(request, navigationOptionsRequestFocus, dataContext)
+    }
+}
+
+@ApiStatus.Internal
+@RequiresEdt
+@RequiresBlockingContext
+inline fun navigateToRequestor(project: Project, requestor: NavigationRequestor, editor: Editor) {
+    LOG.debug { "0 navigateToRequestor - requestor is ${requestor::class.simpleName}" }
+    runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
+        LOG.debug { "navigateToRequestor - requestor is ${requestor::class.simpleName}" }
+
+        val request: NavigationRequest =
+            ProgressManager.getInstance().computePrioritized(ThrowableComputable<NavigationRequest?, RuntimeException> {
+                ApplicationManager.getApplication().runReadAction(Computable<NavigationRequest?> { requestor.navigationRequest() })
+            }) ?: LOG.warn("navigateToRequestor - Failed to create navigation request").let { return@runWithModalProgressBlocking }
+
+        val (activeEditorWindow: EditorWindow?, nextEditorWindow: EditorWindow?) = withContext(Dispatchers.EDT) {
+            val fileEditorManager: FileEditorManagerEx = FileEditorManagerEx.getInstanceExAsync(project)
+            val activeEditorWindow: EditorWindow = fileEditorManager.currentWindow ?: return@withContext null to null
+            return@withContext activeEditorWindow to fileEditorManager.getNextWindow(activeEditorWindow)
+        }
+
+        val dataContext: DataContext
+        // Switch to EDT for UI side-effects
+        withContext(Dispatchers.EDT) {
+            // We have implicit write intent lock under `Dispatchers.EDT`, which implies an **IMPLICIT** read lock too
+            // Therefore, in the latest Intellij Platform API, we don't need to explictly get a read lock
+            // This will change in future releases, so keep an eye on it
+
+            // Acquire DataContext on EDT
+            dataContext = DataManager.getInstance().getDataContext(editor.component)
+            // History update on EDT
+            IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
+            if (activeEditorWindow != null) {
+                if (nextEditorWindow == activeEditorWindow) {
+                    // Create a new vertical split relative to the current window and focus on it.
+                    // If the `file` is `null` the new split will have the same file as `activeEditorWindow`.
+                    activeEditorWindow.split(SwingConstants.VERTICAL, true, getVirtualFileFromNavigationRequest(request), true)
+                } else nextEditorWindow?.setAsCurrentWindow(true)
             }
         }
 

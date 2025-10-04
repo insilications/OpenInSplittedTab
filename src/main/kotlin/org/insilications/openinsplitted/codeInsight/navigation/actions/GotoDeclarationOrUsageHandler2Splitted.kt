@@ -40,6 +40,7 @@ import java.lang.invoke.MethodType
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.system.measureNanoTime
 
 /**
  * "Go To Declaration Or Usages" action result
@@ -255,9 +256,13 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
     ) {
         when (actionResult) {
             is SingleTarget -> {
-                LOG.debug { "gotoDeclarationOnly - SingleTarget" }
                 // Just navigate to the single target
-                navigateToRequestor(project, actionResult.requestor, editor)
+                val nanoTime = measureNanoTime {
+                    navigateToRequestor(project, actionResult.requestor, editor)
+                }
+                LOG.info("gotoDeclarationOnly - SingleTarget: %.3f ms".format(nanoTime / 1_000_000.0))
+//                LOG.debug { "gotoDeclarationOnly - SingleTarget" }
+//                navigateToRequestor(project, actionResult.requestor, editor)
             }
 
             is MultipleTargets -> {
