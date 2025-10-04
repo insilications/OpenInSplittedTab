@@ -31,8 +31,6 @@ class GotoImplementationHandlerSplitted : GotoImplementationHandler() {
 
     @RequiresEdt
     override fun navigateToElement(project: Project?, descriptor: Navigatable) {
-//        EDT.assertIsEdt()
-
         if (project == null) return
 
         val dataContext: DataContext? = fetchDataContext(project)

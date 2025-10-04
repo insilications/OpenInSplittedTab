@@ -258,7 +258,7 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
             is SingleTarget -> {
                 LOG.debug { "gotoDeclarationOnly - SingleTarget" }
                 // Just navigate to the single target
-                navigateRequestLazy(project, actionResult.requestor, editor)
+                navigateToRequestor(project, actionResult.requestor, editor)
             }
 
             is MultipleTargets -> {
@@ -267,7 +267,7 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
                     actionResult.targets, LazyTargetWithPresentation::presentation
                 ) { (requestor, _, _) ->
                     // This is our processor. It is called when the user selects an item from the popup.
-                    navigateRequestLazy(project, requestor, editor)
+                    navigateToRequestor(project, requestor, editor)
                 }
                 popup.showInBestPositionFor(editor)
                 LOG.debug { "gotoDeclarationOnly - MultipleTargets" }

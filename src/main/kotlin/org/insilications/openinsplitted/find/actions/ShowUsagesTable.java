@@ -1,7 +1,7 @@
 // Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
 package org.insilications.openinsplitted.find.actions;
 
-import static org.insilications.openinsplitted.codeInsight.navigation.actions.IdeKt.navigateRequestLazyNavigatable;
+import static org.insilications.openinsplitted.codeInsight.navigation.actions.IdeKt.navigateToNavigatable;
 
 import com.intellij.ide.DataManager;
 import com.intellij.ide.util.gotoByName.ModelDiff;
@@ -193,10 +193,10 @@ public final class ShowUsagesTable extends JBTable implements UiDataProvider {
                             DataManager.getInstance().getDataContext(parameters.editor.getContentComponent()) : null;
                     if (usage instanceof UsageInfo usageInfo) {
                         LOG.debug("prepareTable - usage instanceof UsageInfo");
-                        UsageNavigationSplitted.getInstance(parameters.project).navigateUsageInfo(usageInfo, dataContext);
+                        UsageNavigationSplitted.getInstance(parameters.project).navigateToUsageInfo(usageInfo, dataContext);
                     } else if (usage instanceof Navigatable navigatable) {
                         LOG.debug("prepareTable - usage instanceof Navigatable");
-                        navigateRequestLazyNavigatable(parameters.project, navigatable, dataContext);
+                        navigateToNavigatable(parameters.project, navigatable, dataContext);
                     }
                 }
             }

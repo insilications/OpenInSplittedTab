@@ -15,6 +15,7 @@ import com.intellij.ide.IdeEventQueue
 import com.intellij.ide.util.EditSourceUtil
 import com.intellij.lang.LanguageNamesValidation
 import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.readAction
 import com.intellij.openapi.components.serviceAsync
@@ -24,8 +25,10 @@ import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.openapi.fileEditor.ex.IdeDocumentHistory
 import com.intellij.openapi.fileEditor.impl.EditorWindow
-import com.intellij.openapi.project.DumbService
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Computable
+import com.intellij.openapi.util.ThrowableComputable
 import com.intellij.openapi.util.registry.Registry
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.backend.navigation.NavigationRequest
@@ -93,7 +96,7 @@ fun receiveNextWindowPane(
 inline fun navigateToLookupItem(project: Project, editor: Editor): Boolean {
     val activeLookup: LookupEx = LookupManager.getInstance(project).activeLookup ?: return false
     val currentItem: LookupElement? = activeLookup.currentItem
-    navigateRequestLazy(project, {
+    navigateToRequestor(project, {
         targetElementFromLookupElement(currentItem)
             ?.gtdTargetNavigatable()
             ?.navigationRequest()
@@ -109,40 +112,28 @@ inline fun navigateToLookupItem(project: Project, editor: Editor): Boolean {
 @ApiStatus.Internal
 @RequiresEdt
 @RequiresBlockingContext
-inline fun navigateRequestLazy(project: Project, requestor: NavigationRequestor, editor: Editor) {
+inline fun navigateToRequestor(project: Project, requestor: NavigationRequestor, editor: Editor) {
     runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
+        val request: NavigationRequest =
+            ProgressManager.getInstance().computePrioritized(ThrowableComputable<NavigationRequest?, RuntimeException> {
+                ApplicationManager.getApplication().runReadAction(Computable<NavigationRequest?> { requestor.navigationRequest() })
+            }) ?: LOG.warn("navigateToRequestor - Failed to create navigation request").let { return@runWithModalProgressBlocking }
 
-        val dumbService = DumbService.getInstance(project)
-
-//        val readComputable = ThrowableComputable<NavigationRequest, RuntimeException> {
-//            ApplicationManager.getApplication().runReadAction(Computable { requestor.navigationRequest() })
-//        }
-//        val kk = readComputable.compute()
-//        val request = underModalProgress(project, ActionsBundle.actionText("GotoDeclarationOnly")) {
-//            requestor.navigationRequest()
-//        } ?: LOG.warn("navigateRequestLazy - Failed to create navigation request").let { return@runWithModalProgressBlocking }
-
-        val request: NavigationRequest = readAction { requestor.navigationRequest() }
-            ?: LOG.warn("navigateRequestLazy - Failed to create navigation request").let { return@runWithModalProgressBlocking }
-        // Must check with `.isValid` between read and write actions?
         val file: VirtualFile? = getVirtualFileFromNavigationRequest(request)
 
-//        val kk = ReadAction.compute<VirtualFile?, Throwable> {
-//            getVirtualFileFromNavigationRequest(request)
-//        }
-
+        val dataContext: DataContext
         // Switch to EDT for UI side-effects
         withContext(Dispatchers.EDT) {
             // Acquire DataContext on EDT
-            val dataContext: DataContext = DataManager.getInstance().getDataContext(editor.component)
+            dataContext = DataManager.getInstance().getDataContext(editor.component)
             // History update belongs on EDT
             IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
-            // Maybe we don't have to extract the file everytime if we know a new split window is not going to be created?
+            // Maybe we don't have to extract the `file` everytime if we know a new split window is not going to be created?
             receiveNextWindowPane(project, file)
-
-            // Delegate to the platform to perform actual navigation (single unified call).
-            project.serviceAsync<NavigationService>().navigate(request, navigationOptionsRequestFocus, dataContext)
         }
+
+        // Delegate to the platform's `IdeNavigationService.kt` to perform actual navigation
+        project.serviceAsync<NavigationService>().navigate(request, navigationOptionsRequestFocus, dataContext)
     }
 }
 
@@ -152,23 +143,25 @@ inline fun navigateRequestLazy(project: Project, requestor: NavigationRequestor,
  * This forces the calls to the `navigate` method to reuse that tab. This workaround might be fragile, but it works perfectly.
  */
 @ApiStatus.Internal
-@ApiStatus.Experimental
 @RequiresEdt
-inline fun navigateRequestLazyNavigatable(project: Project, navigatable: Navigatable, dataContext: DataContext?) {
-    // Acquire DataContext on EDT before blocking background thread
-    val dataContext = dataContext ?: fetchDataContext(project)
+inline fun navigateToNavigatable(project: Project, navigatable: Navigatable, dataContext: DataContext?) {
     runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
-        val file: VirtualFile? = extractFileFromNavigatable(navigatable)
+        LOG.debug { "navigateToNavigatable - navigatable is: ${navigatable::class.simpleName}" }
+        val file: VirtualFile? = getVirtualFileFromNavigatable(navigatable)
 
+        val dataContextCheck: DataContext?
         // Switch to EDT for UI side-effects
         withContext(Dispatchers.EDT) {
+            // Acquire DataContext on EDT
+            dataContextCheck = dataContext ?: fetchDataContext(project)
             // History update belongs on EDT
             IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
+            // Maybe we don't have to extract the `file` everytime if we know a new split window is not going to be created?
             receiveNextWindowPane(project, file)
-
-            // Delegate to the platform to perform actual navigation (single unified call).
-            project.serviceAsync<NavigationService>().navigate(navigatable, navigationOptionsRequestFocus, dataContext)
         }
+
+        // Delegate to the platform's `IdeNavigationService.kt` to perform actual navigation
+        project.serviceAsync<NavigationService>().navigate(navigatable, navigationOptionsRequestFocus, dataContextCheck)
     }
 }
 
@@ -183,7 +176,7 @@ suspend fun getVirtualFileFromNavigationRequest(request: NavigationRequest): Vir
 
         is RawNavigationRequest -> {
             LOG.debug { "getVirtualFileFromNavigationRequest - RawNavigationRequest" }
-            extractFileFromNavigatable(request.navigatable)
+            getVirtualFileFromNavigatable(request.navigatable)
         }
         // `DirectoryNavigationRequest` is non-source, so we don't need to handle it
         // It can be handled perfectly by `NavigationService.navigate`
@@ -194,10 +187,13 @@ suspend fun getVirtualFileFromNavigationRequest(request: NavigationRequest): Vir
     }
 }
 
-suspend fun extractFileFromNavigatable(navigatable: Navigatable): VirtualFile? {
+suspend fun getVirtualFileFromNavigatable(navigatable: Navigatable): VirtualFile? {
     // 1. OpenFileDescriptor
     // This only accesses the getter `nav.file` (a VirtualFile). This is VFS-level and does not require a read action
-    if (navigatable is OpenFileDescriptor) return navigatable.file
+    if (navigatable is OpenFileDescriptor) {
+        LOG.debug { "0 extractFileFromNavigatable - navigatable is OpenFileDescriptor" }
+        return navigatable.file
+    }
 
     // 2. PSI-based
     if (navigatable is PsiElement) {
@@ -209,24 +205,18 @@ suspend fun extractFileFromNavigatable(navigatable: Navigatable): VirtualFile? {
         val descriptor: Navigatable? = readAction { EditSourceUtil.getDescriptor(navigatable) }
         when (descriptor) {
             // This only accesses the getter `nav.file` (a VirtualFile). This is VFS-level and does not require a read action
-            is OpenFileDescriptor -> descriptor.file
-            is PsiElement -> readAction { PsiUtilCore.getVirtualFile(descriptor) }
+            is OpenFileDescriptor -> {
+                LOG.debug { "1 extractFileFromNavigatable - descriptor is OpenFileDescriptor" }
+                descriptor.file
+            }
+
+            is PsiElement -> {
+                LOG.debug { "2 extractFileFromNavigatable - descriptor is PsiElement" }
+                readAction { PsiUtilCore.getVirtualFile(descriptor) }
+            }
             // 3. Non-PSI, non-descriptor-like object of type `Navigatable` → No recoverable file
             // else -> null
         }
-
-//        readAction {
-//            // Try a descriptor derived from PSI (often yields an OpenFileDescriptor)
-//            // The `EditSourceUtil.getDescriptor` makes a best-effort attempt to extract as `OpenFileDescriptor`
-//            // It even calls the `PsiUtilCore.getVirtualFile` if necessary
-//            when (val descriptor = EditSourceUtil.getDescriptor(navigatable)) {
-//                is OpenFileDescriptor -> descriptor.file
-//                is PsiElement -> if (descriptor.isValid) PsiUtilCore.getVirtualFile(descriptor) else null
-//
-//                // 3. Non-PSI, non-OpenFileDescriptor Navigatable → No recoverable file
-//                else -> null
-//            }
-//        }
     }
     return null
 }

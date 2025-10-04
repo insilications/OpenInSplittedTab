@@ -591,7 +591,6 @@ public final class ShowUsagesAction {
         };
 
         UsageSearcher usageSearcher = actionHandler.createUsageSearcher();
-//        CompletableFuture<Collection<Usage>> result = new CompletableFuture<>();
         FindUsagesManager.startProcessUsages(indicator, project, usageSearcher, collect, () -> ApplicationManager.getApplication().invokeLater(
                 () -> {
                     showUsagesPopupData.header.disposeProcessIcon();
@@ -621,7 +620,7 @@ public final class ShowUsagesAction {
                                     cancelAndShowHint(popup, true, hint, parameters, actionHandler);
                                 } else {
                                     String hint = UsageViewBundle.message("show.usages.only.usage", searchScope.getDisplayName());
-                                    UsageNavigationSplitted.getInstance(project).navigateAndHint(
+                                    UsageNavigationSplitted.getInstance(project).navigateToUsageAndHint(
                                             project, usage, () -> onReady.accept(usage, hint), parameters.editor);
                                     LOG.debug("showElementUsagesWithResult - usages.size() == 1");
                                 }
@@ -630,19 +629,17 @@ public final class ShowUsagesAction {
                                 Usage visibleUsage = visibleUsages.iterator().next();
                                 if (areAllUsagesInOneLine(visibleUsage, usages)) {
                                     String hint = UsageViewBundle.message("all.usages.are.in.this.line", usages.size(), searchScope.getDisplayName());
-                                    UsageNavigationSplitted.getInstance(project).navigateAndHint(
+                                    UsageNavigationSplitted.getInstance(project).navigateToUsageAndHint(
                                             project, visibleUsage, () -> onReady.accept(visibleUsage, hint), parameters.editor);
                                     LOG.debug("showElementUsagesWithResult - usages.size() != 1");
                                 }
                             }
                         }
-//                        result.complete(usages);
                     }
                 },
                 project.getDisposed()
         ));
         actionHandler.afterOpen(popup);
-//        return result;
     }
 
     private static void toggleFilters(@NotNull List<? extends ToggleAction> unselectedActions) {

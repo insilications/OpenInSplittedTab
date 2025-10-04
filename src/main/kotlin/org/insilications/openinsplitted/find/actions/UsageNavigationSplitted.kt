@@ -36,7 +36,7 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
         private val LOG: Logger = Logger.getInstance("org.insilications.openinsplitted")
     }
 
-    fun navigateAndHint(
+    fun navigateToUsageAndHint(
         project: Project,
         usage: Usage,
         onReady: Runnable,
@@ -47,18 +47,17 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
                 DataManager.getInstance().getDataContext(it.component)
             }
 
+            // History update belongs on EDT
+            IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
+
             if (usage is UsageInfo2UsageAdapter) {
-                // History update belongs on EDT
-                IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
                 receiveNextWindowPane(project, usage.file)
                 LOG.debug { "0 navigateAndHint - usage is ${usage::class.simpleName}" }
             } else {
-                // History update belongs on EDT
-                IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
                 receiveNextWindowPane(project, null)
                 LOG.debug { "1 navigateAndHint - usage is ${usage::class.simpleName}" }
-
             }
+
             NavigationService.getInstance(project).navigate(usage, navigationOptionsRequestFocus, dataContext)
             writeIntentReadAction {
                 onReady.run()
@@ -66,8 +65,7 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
         }
     }
 
-    fun navigateUsageInfo(info: UsageInfo, dataContext: DataContext?) {
-        // Spawn on a background thread
+    fun navigateToUsageInfo(info: UsageInfo, dataContext: DataContext?) {
         cs.launch {
             val (request: NavigationRequest?, file: VirtualFile?) = readAction {
                 val file: VirtualFile = info.virtualFile ?: return@readAction null to null
