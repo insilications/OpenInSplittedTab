@@ -37,7 +37,6 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
     }
 
     fun navigateToUsageAndHint(
-        project: Project,
         usage: Usage,
         onReady: Runnable,
         editor: Editor?,

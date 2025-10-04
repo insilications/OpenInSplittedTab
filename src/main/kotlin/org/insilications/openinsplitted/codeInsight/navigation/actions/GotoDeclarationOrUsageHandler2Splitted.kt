@@ -57,7 +57,6 @@ sealed class GTDUActionResultMirror {
      * Show Usages
      */
     class SU(val targetVariants: List<Any>) : GTDUActionResultMirror() {
-
         init {
             require(targetVariants.isNotEmpty())
         }
@@ -281,7 +280,7 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
         file: PsiFile,
         targetVariants: List<Any>
     ) {
-        require(targetVariants.isNotEmpty())
+//        require(targetVariants.isNotEmpty())
         // Build DataContext for scope resolution (public API)
         val dataContext: DataContext = SimpleDataContext.builder()
             .add(CommonDataKeys.PSI_FILE, file)

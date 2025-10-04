@@ -621,7 +621,7 @@ public final class ShowUsagesAction {
                                 } else {
                                     String hint = UsageViewBundle.message("show.usages.only.usage", searchScope.getDisplayName());
                                     UsageNavigationSplitted.getInstance(project).navigateToUsageAndHint(
-                                            project, usage, () -> onReady.accept(usage, hint), parameters.editor);
+                                            usage, () -> onReady.accept(usage, hint), parameters.editor);
                                     LOG.debug("showElementUsagesWithResult - usages.size() == 1");
                                 }
                             } else {
@@ -630,7 +630,7 @@ public final class ShowUsagesAction {
                                 if (areAllUsagesInOneLine(visibleUsage, usages)) {
                                     String hint = UsageViewBundle.message("all.usages.are.in.this.line", usages.size(), searchScope.getDisplayName());
                                     UsageNavigationSplitted.getInstance(project).navigateToUsageAndHint(
-                                            project, visibleUsage, () -> onReady.accept(visibleUsage, hint), parameters.editor);
+                                            visibleUsage, () -> onReady.accept(visibleUsage, hint), parameters.editor);
                                     LOG.debug("showElementUsagesWithResult - usages.size() != 1");
                                 }
                             }
