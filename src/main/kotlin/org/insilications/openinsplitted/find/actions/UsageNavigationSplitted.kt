@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
 import org.insilications.openinsplitted.codeInsight.navigation.actions.receiveNextWindowPane
 import org.insilications.openinsplitted.codeInsight.navigation.impl.navigationOptionsRequestFocus
 import org.insilications.openinsplitted.debug
+import org.insilications.openinsplitted.printCurrentThreadContext
 import org.jetbrains.annotations.ApiStatus
 
 @Service(Service.Level.PROJECT)
@@ -41,8 +42,14 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
         onReady: Runnable,
         editor: Editor?,
     ) {
+        printCurrentThreadContext("navigateToUsageAndHint - 0")
         cs.launch(Dispatchers.EDT) {
-            val dataContext = editor?.let {
+            // We have implicit write intent lock under `Dispatchers.EDT`, which implies an **IMPLICIT** read lock too
+            // Therefore, in the latest Intellij Platform API, we don't need to explictly get a read lock
+            // This will change in future releases, so keep an eye on it
+
+            printCurrentThreadContext("navigateToUsageAndHint - 1")
+            val dataContext: DataContext? = editor?.let {
                 DataManager.getInstance().getDataContext(it.component)
             }
 
@@ -64,8 +71,11 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
     }
 
     fun navigateToUsageInfo(info: UsageInfo, dataContext: DataContext?) {
+        printCurrentThreadContext("navigateToUsageInfo - 0")
         cs.launch {
+            printCurrentThreadContext("navigateToUsageInfo - 1")
             val (request: NavigationRequest?, file: VirtualFile?) = readAction {
+                printCurrentThreadContext("navigateToUsageInfo - 2")
                 val file: VirtualFile = info.virtualFile ?: return@readAction null to null
                 NavigationRequest
                     .sourceNavigationRequest(info.project, file, info.navigationOffset) to file
@@ -78,10 +88,17 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
             }
 
             withContext(Dispatchers.EDT) {
+                // We have implicit write intent lock under `Dispatchers.EDT`, which implies an **IMPLICIT** read lock too
+                // Therefore, in the latest Intellij Platform API, we don't need to explictly get a read lock
+                // This will change in future releases, so keep an eye on it
+
+                printCurrentThreadContext("navigateToUsageInfo - 3")
                 // History update on EDT
                 IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
                 receiveNextWindowPane(project, file)
             }
+
+            printCurrentThreadContext("navigateToUsageInfo - 4")
 
             NavigationService.getInstance(project).navigate(
                 request,

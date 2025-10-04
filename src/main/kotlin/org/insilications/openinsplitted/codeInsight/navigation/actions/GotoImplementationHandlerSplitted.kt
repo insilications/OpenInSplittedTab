@@ -17,6 +17,7 @@ import org.insilications.openinsplitted.codeInsight.navigation.impl.fetchDataCon
 import org.insilications.openinsplitted.codeInsight.navigation.impl.navigationOptionsRequestFocus
 import org.insilications.openinsplitted.codeInsight.navigation.impl.progressTitlePreparingNavigation
 import org.insilications.openinsplitted.debug
+import org.insilications.openinsplitted.printCurrentThreadContext
 
 class GotoImplementationHandlerSplitted : GotoImplementationHandler() {
     companion object {
@@ -27,12 +28,19 @@ class GotoImplementationHandlerSplitted : GotoImplementationHandler() {
     override fun navigateToElement(project: Project?, descriptor: Navigatable) {
         if (project == null) return
 
+        printCurrentThreadContext("GotoImplementationHandlerSplitted - navigateToElement - 0")
         runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
+            printCurrentThreadContext("GotoImplementationHandlerSplitted - navigateToElement - 1")
             LOG.debug { "GotoImplementationHandlerSplitted - navigateToElement - descriptor is ${descriptor::class.simpleName}" }
 
             val dataContext: DataContext?
             // Switch to EDT for UI side-effects
             withContext(Dispatchers.EDT) {
+                // We have implicit write intent lock under `Dispatchers.EDT`, which implies an **IMPLICIT** read lock too
+                // Therefore, in the latest Intellij Platform API, we don't need to explictly get a read lock
+                // This will change in future releases, so keep an eye on it
+
+                printCurrentThreadContext("GotoImplementationHandlerSplitted - navigateToElement - 2")
                 // Acquire DataContext on EDT
                 dataContext = fetchDataContext(project)
                 // History update on EDT

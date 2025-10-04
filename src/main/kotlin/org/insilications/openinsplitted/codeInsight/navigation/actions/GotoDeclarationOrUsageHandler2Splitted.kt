@@ -110,7 +110,7 @@ class GotoDeclarationOrUsageHandler2Splitted : CodeInsightActionHandler {
 
                         // On success, return a lambda that uses the handle.
                         // This is the strongly-typed function.
-                        { project, editor, file, offset ->
+                        { project: Project, editor: Editor, file: PsiFile, offset: Int ->
                             handle.invokeWithArguments(project, editor, file, offset)
                         }
                     } catch (t: Throwable) {

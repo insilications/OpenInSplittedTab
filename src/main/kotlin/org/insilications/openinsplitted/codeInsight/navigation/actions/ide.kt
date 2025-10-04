@@ -49,6 +49,7 @@ import org.insilications.openinsplitted.codeInsight.navigation.impl.gtdTargetNav
 import org.insilications.openinsplitted.codeInsight.navigation.impl.navigationOptionsRequestFocus
 import org.insilications.openinsplitted.codeInsight.navigation.impl.progressTitlePreparingNavigation
 import org.insilications.openinsplitted.debug
+import org.insilications.openinsplitted.printCurrentThreadContext
 import org.jetbrains.annotations.ApiStatus
 import java.awt.AWTEvent
 import java.awt.event.MouseEvent
@@ -73,7 +74,8 @@ suspend inline fun receiveNextWindowPane(
     project: Project,
     getFile: suspend () -> VirtualFile?,
 ) {
-    val fileEditorManager: FileEditorManagerEx = FileEditorManagerEx.getInstanceEx(project)
+    printCurrentThreadContext("0 receiveNextWindowPane - 0")
+    val fileEditorManager: FileEditorManagerEx = FileEditorManagerEx.getInstanceExAsync(project)
     val activeEditorWindow: EditorWindow = fileEditorManager.currentWindow ?: return
     val nextEditorWindow: EditorWindow? = fileEditorManager.getNextWindow(activeEditorWindow)
 
@@ -103,17 +105,19 @@ suspend inline fun receiveNextWindowPane(
  * @param file
  */
 @RequiresEdt
-inline fun receiveNextWindowPane(
+suspend inline fun receiveNextWindowPane(
     project: Project,
     file: VirtualFile?,
 ) {
-    val fileEditorManager: FileEditorManagerEx = FileEditorManagerEx.getInstanceEx(project)
+    printCurrentThreadContext("1 receiveNextWindowPane - 0")
+    val fileEditorManager: FileEditorManagerEx = FileEditorManagerEx.getInstanceExAsync(project)
     val activeEditorWindow: EditorWindow = fileEditorManager.currentWindow ?: return
     val nextEditorWindow: EditorWindow? = fileEditorManager.getNextWindow(activeEditorWindow)
 
     if (nextEditorWindow == activeEditorWindow) {
         // Create a new vertical split relative to the current window and focus on it.
         // If the `file` is `null` the new split will have the same file as `activeEditorWindow`.
+        printCurrentThreadContext("1 receiveNextWindowPane - 1")
         activeEditorWindow.split(SwingConstants.VERTICAL, true, file, true)
         LOG.debug { "nextEditorWindow == activeEditorWindow" }
     } else if (nextEditorWindow != null) {
@@ -147,7 +151,10 @@ inline fun navigateToLookupItem(project: Project, editor: Editor): Boolean {
 @RequiresEdt
 @RequiresBlockingContext
 inline fun navigateToRequestor(project: Project, requestor: NavigationRequestor, editor: Editor) {
+    printCurrentThreadContext("navigateToRequestor - 0")
+    LOG.debug { "0 navigateToRequestor - requestor is ${requestor::class.simpleName}" }
     runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
+        printCurrentThreadContext("navigateToRequestor - 1")
         LOG.debug { "navigateToRequestor - requestor is ${requestor::class.simpleName}" }
 
         val request: NavigationRequest =
@@ -158,6 +165,11 @@ inline fun navigateToRequestor(project: Project, requestor: NavigationRequestor,
         val dataContext: DataContext
         // Switch to EDT for UI side-effects
         withContext(Dispatchers.EDT) {
+            // We have implicit write intent lock under `Dispatchers.EDT`, which implies an **IMPLICIT** read lock too
+            // Therefore, in the latest Intellij Platform API, we don't need to explictly get a read lock
+            // This will change in future releases, so keep an eye on it
+
+            printCurrentThreadContext("navigateToRequestor - 2")
             // Acquire DataContext on EDT
             dataContext = DataManager.getInstance().getDataContext(editor.component)
             // History update on EDT
@@ -180,16 +192,23 @@ inline fun navigateToRequestor(project: Project, requestor: NavigationRequestor,
 @ApiStatus.Internal
 @RequiresEdt
 inline fun navigateToNavigatable(project: Project, navigatable: Navigatable, dataContext: DataContext?) {
+    printCurrentThreadContext("navigateToNavigatable - 0")
     runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
+        printCurrentThreadContext("navigateToNavigatable - 2")
         LOG.debug { "navigateToNavigatable - navigatable is: ${navigatable::class.simpleName}" }
 
         val dataContextCheck: DataContext?
         // Switch to EDT for UI side-effects
         withContext(Dispatchers.EDT) {
+            // We have implicit write intent lock under `Dispatchers.EDT`, which implies an **IMPLICIT** read lock too
+            // Therefore, in the latest Intellij Platform API, we don't need to explictly get a read lock
+            // This will change in future releases, so keep an eye on it
+
             // Acquire DataContext on EDT
             dataContextCheck = dataContext ?: fetchDataContext(project)
             // History update on EDT
             IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
+            printCurrentThreadContext("navigateToNavigatable - 3")
             receiveNextWindowPane(project) {
                 getVirtualFileFromNavigatable(navigatable)
             }
@@ -202,6 +221,8 @@ inline fun navigateToNavigatable(project: Project, navigatable: Navigatable, dat
 
 @ApiStatus.Experimental
 suspend fun getVirtualFileFromNavigationRequest(request: NavigationRequest): VirtualFile? {
+    printCurrentThreadContext("getVirtualFileFromNavigationRequest - 0")
+
     return when (request) {
         // `SharedSourceNavigationRequest` is a subclass of `SourceNavigationRequest`.
         is SourceNavigationRequest -> {
@@ -223,6 +244,8 @@ suspend fun getVirtualFileFromNavigationRequest(request: NavigationRequest): Vir
 }
 
 suspend inline fun getVirtualFileFromNavigatable(navigatable: Navigatable): VirtualFile? {
+    printCurrentThreadContext("getVirtualFileFromNavigatable - 0")
+
     // 1. OpenFileDescriptor
     // This only accesses the getter `nav.file` (a VirtualFile). This is VFS-level and does not require a read action
     if (navigatable is OpenFileDescriptor) {
@@ -237,7 +260,10 @@ suspend inline fun getVirtualFileFromNavigatable(navigatable: Navigatable): Virt
         // Try to get a descriptor derived from PSI with the `EditSourceUtil.getDescriptor` method
         // The method makes a best-effort attempt to extract descriptor-like objects of type `Navigatable`
         // It often yields an OpenFileDescriptor
-        val descriptor: Navigatable? = readAction { EditSourceUtil.getDescriptor(navigatable) }
+        val descriptor: Navigatable? = readAction {
+            printCurrentThreadContext("getVirtualFileFromNavigatable - 2")
+            EditSourceUtil.getDescriptor(navigatable)
+        }
         when (descriptor) {
             // This only accesses the getter `nav.file` (a VirtualFile). This is VFS-level and does not require a read action
             is OpenFileDescriptor -> {
@@ -247,7 +273,10 @@ suspend inline fun getVirtualFileFromNavigatable(navigatable: Navigatable): Virt
 
             is PsiElement -> {
                 LOG.debug { "2 extractFileFromNavigatable - descriptor is PsiElement" }
-                return readAction { PsiUtilCore.getVirtualFile(descriptor) } ?: LOG.warn("3 extractFileFromNavigatable - returned null").let { return null }
+                return readAction {
+                    printCurrentThreadContext("getVirtualFileFromNavigatable - 3")
+                    PsiUtilCore.getVirtualFile(descriptor)
+                } ?: LOG.warn("3 extractFileFromNavigatable - returned null").let { return null }
             }
             // 3. Non-PSI, non-descriptor-like object of type `Navigatable` → No recoverable file
             // else -> null
