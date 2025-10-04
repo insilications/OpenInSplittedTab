@@ -114,6 +114,8 @@ inline fun navigateToLookupItem(project: Project, editor: Editor): Boolean {
 @RequiresBlockingContext
 inline fun navigateToRequestor(project: Project, requestor: NavigationRequestor, editor: Editor) {
     runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
+        LOG.debug { "navigateToRequestor - requestor is ${requestor::class.simpleName}" }
+
         val request: NavigationRequest =
             ProgressManager.getInstance().computePrioritized(ThrowableComputable<NavigationRequest?, RuntimeException> {
                 ApplicationManager.getApplication().runReadAction(Computable<NavigationRequest?> { requestor.navigationRequest() })
@@ -170,18 +172,18 @@ suspend fun getVirtualFileFromNavigationRequest(request: NavigationRequest): Vir
     return when (request) {
         // `SharedSourceNavigationRequest` is a subclass of `SourceNavigationRequest`.
         is SourceNavigationRequest -> {
-            LOG.debug { "getVirtualFileFromNavigationRequest - SourceNavigationRequest" }
+            LOG.debug { "getVirtualFileFromNavigationRequest - request is SourceNavigationRequest" }
             request.file
         }
 
         is RawNavigationRequest -> {
-            LOG.debug { "getVirtualFileFromNavigationRequest - RawNavigationRequest" }
+            LOG.debug { "getVirtualFileFromNavigationRequest - request is RawNavigationRequest" }
             getVirtualFileFromNavigatable(request.navigatable)
         }
         // `DirectoryNavigationRequest` is non-source, so we don't need to handle it
         // It can be handled perfectly by `NavigationService.navigate`
         else -> {
-            LOG.debug { "getVirtualFileFromNavigationRequest - Non-source request: ${request::class.simpleName}" }
+            LOG.warn("getVirtualFileFromNavigationRequest - Non-source request: ${request::class.simpleName}")
             null
         }
     }
@@ -197,7 +199,7 @@ suspend fun getVirtualFileFromNavigatable(navigatable: Navigatable): VirtualFile
 
     // 2. PSI-based
     if (navigatable is PsiElement) {
-//        if (!nav.isValid) return null
+        // if (!nav.isValid) return null
 
         // Try to get a descriptor derived from PSI with the `EditSourceUtil.getDescriptor` method
         // The method makes a best-effort attempt to extract descriptor-like objects of type `Navigatable`
@@ -207,17 +209,18 @@ suspend fun getVirtualFileFromNavigatable(navigatable: Navigatable): VirtualFile
             // This only accesses the getter `nav.file` (a VirtualFile). This is VFS-level and does not require a read action
             is OpenFileDescriptor -> {
                 LOG.debug { "1 extractFileFromNavigatable - descriptor is OpenFileDescriptor" }
-                descriptor.file
+                return descriptor.file
             }
 
             is PsiElement -> {
                 LOG.debug { "2 extractFileFromNavigatable - descriptor is PsiElement" }
-                readAction { PsiUtilCore.getVirtualFile(descriptor) }
+                return readAction { PsiUtilCore.getVirtualFile(descriptor) } ?: LOG.warn("3 extractFileFromNavigatable - returned null").let { return null }
             }
             // 3. Non-PSI, non-descriptor-like object of type `Navigatable` → No recoverable file
             // else -> null
         }
     }
+    LOG.warn("4 extractFileFromNavigatable - returned null")
     return null
 }
 
