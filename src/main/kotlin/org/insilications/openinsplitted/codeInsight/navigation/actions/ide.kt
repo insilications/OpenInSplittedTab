@@ -66,10 +66,44 @@ val LOG: Logger = Logger.getInstance("org.insilications.openinsplitted")
  * with the `requestFocus` parameter set to `true`.
  *
  * @param project
+ * @param getFile
+ */
+@RequiresEdt
+suspend inline fun receiveNextWindowPane(
+    project: Project,
+    getFile: suspend () -> VirtualFile?,
+) {
+    val fileEditorManager: FileEditorManagerEx = FileEditorManagerEx.getInstanceEx(project)
+    val activeEditorWindow: EditorWindow = fileEditorManager.currentWindow ?: return
+    val nextEditorWindow: EditorWindow? = fileEditorManager.getNextWindow(activeEditorWindow)
+
+    if (nextEditorWindow == activeEditorWindow) {
+        // Create a new vertical split relative to the current window and focus on it.
+        // If the `file` is `null` the new split will have the same file as `activeEditorWindow`.
+        activeEditorWindow.split(SwingConstants.VERTICAL, true, getFile(), true)
+        LOG.debug { "nextEditorWindow == activeEditorWindow" }
+    } else if (nextEditorWindow != null) {
+        nextEditorWindow.setAsCurrentWindow(true)
+        LOG.debug { "nextEditorWindow != activeEditorWindow - nextEditorWindow != null" }
+    } else {
+        LOG.debug { "nextEditorWindow != activeEditorWindow - nextEditorWindow == null" }
+    }
+}
+
+/**
+ * If `nextEditorWindow` is the same as `activeEditorWindow`, it means there are no splitted tabs.
+ * In this case, we create a new vertical split relative to the current window, with
+ * `focusNew` set to `true` to focus on the new tab.
+ *
+ * If `nextEditorWindow` is different from `activeEditorWindow`, then there is already a splitted tab.
+ * Set that splitted tab as the current window using the `setAsCurrentWindow` method
+ * with the `requestFocus` parameter set to `true`.
+ *
+ * @param project
  * @param file
  */
 @RequiresEdt
-fun receiveNextWindowPane(
+inline fun receiveNextWindowPane(
     project: Project,
     file: VirtualFile?,
 ) {
@@ -78,10 +112,10 @@ fun receiveNextWindowPane(
     val nextEditorWindow: EditorWindow? = fileEditorManager.getNextWindow(activeEditorWindow)
 
     if (nextEditorWindow == activeEditorWindow) {
-        LOG.debug { "nextEditorWindow == activeEditorWindow" }
         // Create a new vertical split relative to the current window and focus on it.
-        // The `file` parameter can be null, in which case the new split will have the same file as `activeEditorWindow`.
+        // If the `file` is `null` the new split will have the same file as `activeEditorWindow`.
         activeEditorWindow.split(SwingConstants.VERTICAL, true, file, true)
+        LOG.debug { "nextEditorWindow == activeEditorWindow" }
     } else if (nextEditorWindow != null) {
         nextEditorWindow.setAsCurrentWindow(true)
         LOG.debug { "nextEditorWindow != activeEditorWindow - nextEditorWindow != null" }
@@ -121,17 +155,16 @@ inline fun navigateToRequestor(project: Project, requestor: NavigationRequestor,
                 ApplicationManager.getApplication().runReadAction(Computable<NavigationRequest?> { requestor.navigationRequest() })
             }) ?: LOG.warn("navigateToRequestor - Failed to create navigation request").let { return@runWithModalProgressBlocking }
 
-        val file: VirtualFile? = getVirtualFileFromNavigationRequest(request)
-
         val dataContext: DataContext
         // Switch to EDT for UI side-effects
         withContext(Dispatchers.EDT) {
             // Acquire DataContext on EDT
             dataContext = DataManager.getInstance().getDataContext(editor.component)
-            // History update belongs on EDT
+            // History update on EDT
             IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
-            // Maybe we don't have to extract the `file` everytime if we know a new split window is not going to be created?
-            receiveNextWindowPane(project, file)
+            receiveNextWindowPane(project) {
+                getVirtualFileFromNavigationRequest(request)
+            }
         }
 
         // Delegate to the platform's `IdeNavigationService.kt` to perform actual navigation
@@ -149,17 +182,17 @@ inline fun navigateToRequestor(project: Project, requestor: NavigationRequestor,
 inline fun navigateToNavigatable(project: Project, navigatable: Navigatable, dataContext: DataContext?) {
     runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
         LOG.debug { "navigateToNavigatable - navigatable is: ${navigatable::class.simpleName}" }
-        val file: VirtualFile? = getVirtualFileFromNavigatable(navigatable)
 
         val dataContextCheck: DataContext?
         // Switch to EDT for UI side-effects
         withContext(Dispatchers.EDT) {
             // Acquire DataContext on EDT
             dataContextCheck = dataContext ?: fetchDataContext(project)
-            // History update belongs on EDT
+            // History update on EDT
             IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
-            // Maybe we don't have to extract the `file` everytime if we know a new split window is not going to be created?
-            receiveNextWindowPane(project, file)
+            receiveNextWindowPane(project) {
+                getVirtualFileFromNavigatable(navigatable)
+            }
         }
 
         // Delegate to the platform's `IdeNavigationService.kt` to perform actual navigation
@@ -189,7 +222,7 @@ suspend fun getVirtualFileFromNavigationRequest(request: NavigationRequest): Vir
     }
 }
 
-suspend fun getVirtualFileFromNavigatable(navigatable: Navigatable): VirtualFile? {
+suspend inline fun getVirtualFileFromNavigatable(navigatable: Navigatable): VirtualFile? {
     // 1. OpenFileDescriptor
     // This only accesses the getter `nav.file` (a VirtualFile). This is VFS-level and does not require a read action
     if (navigatable is OpenFileDescriptor) {

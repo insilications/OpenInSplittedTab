@@ -47,9 +47,8 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
                 DataManager.getInstance().getDataContext(it.component)
             }
 
-            // History update belongs on EDT
+            // History update on EDT
             IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
-
             if (usage is UsageInfo2UsageAdapter) {
                 receiveNextWindowPane(project, usage.file)
                 LOG.debug { "0 navigateAndHint - usage is ${usage::class.simpleName}" }
@@ -80,7 +79,7 @@ class UsageNavigationSplitted(private val project: Project, private val cs: Coro
             }
 
             withContext(Dispatchers.EDT) {
-                // History update belongs on EDT
+                // History update on EDT
                 IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
                 receiveNextWindowPane(project, file)
             }

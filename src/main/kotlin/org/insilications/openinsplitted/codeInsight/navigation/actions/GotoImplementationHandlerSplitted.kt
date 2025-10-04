@@ -7,7 +7,6 @@ import com.intellij.openapi.components.serviceAsync
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.ex.IdeDocumentHistory
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.ide.navigation.NavigationService
 import com.intellij.platform.ide.progress.runWithModalProgressBlocking
 import com.intellij.pom.Navigatable
@@ -28,18 +27,22 @@ class GotoImplementationHandlerSplitted : GotoImplementationHandler() {
     override fun navigateToElement(project: Project?, descriptor: Navigatable) {
         if (project == null) return
 
-        val dataContext: DataContext? = fetchDataContext(project)
-        LOG.debug { "0 GotoImplementationHandlerSplitted - navigateToElement - descriptor is ${descriptor::class.simpleName}" }
-
         runWithModalProgressBlocking(project, progressTitlePreparingNavigation) {
-            val file: VirtualFile? = getVirtualFileFromNavigatable(descriptor)
+            LOG.debug { "GotoImplementationHandlerSplitted - navigateToElement - descriptor is ${descriptor::class.simpleName}" }
 
+            val dataContext: DataContext?
+            // Switch to EDT for UI side-effects
             withContext(Dispatchers.EDT) {
-                // History update belongs on EDT
+                // Acquire DataContext on EDT
+                dataContext = fetchDataContext(project)
+                // History update on EDT
                 IdeDocumentHistory.getInstance(project).includeCurrentCommandAsNavigation()
-                // Maybe we don't have to extract the `file` everytime if we know a new split window is not going to be created?
-                receiveNextWindowPane(project, file)
+                receiveNextWindowPane(project) {
+                    getVirtualFileFromNavigatable(descriptor)
+                }
             }
+
+            // Delegate to the platform's `IdeNavigationService.kt` to perform actual navigation
             project.serviceAsync<NavigationService>().navigate(descriptor, navigationOptionsRequestFocus, dataContext)
         }
     }
